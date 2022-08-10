@@ -1,5 +1,6 @@
 module SMLMVis
 
-# Write your package code here.
+using GLMakie
+
 
 end
