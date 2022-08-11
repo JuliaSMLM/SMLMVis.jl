@@ -48,12 +48,14 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1'
-      - uses: julia-actions/julia-buildpkg@v1
+      - run: sudo apt-get update && sudo apt-get install -y xorg-dev mesa-utils xvfb libgl1 freeglut3-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev
+      - name: julia-buildpkg with xvfb-run # Copied from https://github.com/julia-actions/julia-buildpkg with modifications
+        run: xvfb-run julia --color=yes --project=@. -e 'using Pkg; Pkg.build(verbose=true);'
       - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
-          julia --project=docs -e '
+      - run: 
+          xvfb-run julia --project=docs -e '
             using Documenter: DocMeta, doctest
             using SMLMVis
             DocMeta.setdocmeta!(SMLMVis, :DocTestSetup, :(using SMLMVis); recursive=true)
