@@ -18,7 +18,9 @@ z=PSF.ZernikeCoefficients(mag,phase)
 psf=PSF.Scalar3D(na,λ,n,pixelsize;z=z)
 
 # Generate Data
-data,y=DF.gendata(psf;ρ=1.0,sz=128,nframes=100,bg=5.0,maxz=1.0,photons=500.0,rmse=0.7)
+# data,y=DF.gendata(psf;ρ=1.0,sz=128,nframes=100,bg=5.0,maxz=1.0,photons=500.0,rmse=0.7)
+data,y=DF.gendata(;ρ=1.0,sz=128,nframes=100,bg=5.0,maxz=1.0,photons=500.0, readnoise=0.7, minphotons=50, bgmaxz=1.0, psffile="C:\\Users\\ellys\\.julia\\dev\\SMLMDeepFit\\examples\\temp\\psfs\\psf_astigmatism.bson", savepath="C:\\Users\\ellys\\.julia\\dev\\SMLMDeepFit\\examples\\temp", savename="result_example.bson")
+#gendata(; ρ, sz, nframes, bg, maxz, photons, readnoise, minphotons, bgmaxz, psffile, savepath, savename)
 
 # Look at a few frames
 imzoom=4 #(interpolated)
