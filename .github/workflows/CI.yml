@@ -61,9 +61,9 @@ jobs:
           prefix: xvfb-run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - run: 
+      - run: |
           xvfb-run julia --project=docs -e '
-            using Documenter:DocMeta, doctest
+            using Documenter: DocMeta, doctest
             using SMLMVis
             DocMeta.setdocmeta!(SMLMVis, :DocTestSetup, :(using SMLMVis); recursive=true)
             doctest(SMLMVis)'
