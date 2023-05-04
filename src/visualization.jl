@@ -135,13 +135,13 @@ function display(data; predict=nothing, gt=nothing, pixel_size=nothing)
                     x -> x ? "$(label[2][1]) $(label[1])" : "$(label[2][2]) $(label[1])",
                     toggle.active,
                 );
-                textsize=25,
+                fontsize=25,
             ),
         ]
     end
 
     buttons = [
-        GLMakie.Button(fig; label=label, textsize=25) for
+        GLMakie.Button(fig; label=label, fontsize=25) for
         label in ["Save as image", "Reset zoom"]
     ] # Create buttons
 

@@ -1,6 +1,8 @@
 # A GLMakie based image results viewer.
+using SMLMVis
+SV=SMLMVis
 
-include("gendatastack.jl")
+#include("gendatastack.jl")
 
 # Use this script to develop, then put function in src/visualization
 
@@ -12,7 +14,7 @@ include("gendatastack.jl")
 predict = []
 
 for i in 1:100
-    for pos in DF.parse_gt(i, y)
+    for pos in SV.parse_gt(i, y)
         push!(
             predict,
             [
@@ -30,7 +32,7 @@ for i in 1:100
     end
 end
 
-DF.display(data; predict=predict, gt=y, pixel_size=1.0)
+SV.display(data; predict=predict, gt=y, pixel_size=1.0)
 
 # Add function that puts 'X' on gt location. Color code by z.
 # https://makie.juliaplots.org/stable/examples/plotting_functions/scatter/
@@ -39,3 +41,4 @@ DF.display(data; predict=predict, gt=y, pixel_size=1.0)
 # fig
 
 # Add function that plots circles with r=sigma. color code by z
+
