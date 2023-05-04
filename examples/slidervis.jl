@@ -2,7 +2,7 @@
 using SMLMVis
 SV=SMLMVis
 
-#include("gendatastack.jl")
+include("gendatastack.jl")
 
 # Use this script to develop, then put function in src/visualization
 
