@@ -52,5 +52,11 @@ SMLMVis.MIC.isMIC(fn)
 data = Float32.(SMLMVis.MIC.readMIC(fn, datasetnum=1);)
 SMLMVis.MIC.normalize!(data)
 
-SMLMVis.MIC.mic2mp4(fn, framenormalize=false)
+im = data[:,:,1:1000]
+
+# @profview imgstack = SMLMVis.arr2imgstack(data);
+
+# SMLMVis.save_to_mp4("test.mp4", im, fps=30, crf=23)
+
+@time SMLMVis.MIC.mic2mp4(fn)
 

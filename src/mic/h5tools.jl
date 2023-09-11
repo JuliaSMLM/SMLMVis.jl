@@ -16,10 +16,8 @@ function isMIC(filename::AbstractString)
 
     # Check if file has expected group structure
     if haskey(file, "Channel01/Zposition001")
-        println("File $filename has expected group structure.")
         out = true
     else
-        println("File $filename does not have expected group structure.")
         out = false
     end
 
@@ -124,6 +122,7 @@ function mic2mp4(filename::AbstractString;
     crf::Int=23)
 
     # Read data from MIC file
+    @info "Reading data from $filename"
     data = Float32.(readMIC(filename, groupname=groupname, datasetnum=datasetnum))
 
     # Save data to mp4 file
@@ -132,6 +131,7 @@ function mic2mp4(filename::AbstractString;
         savefilename = basefilename * ".mp4"
     end
 
+    @info "normalizing data"
     if framenormalize
         for i in 1:size(data)[3]
             normalize!(view(data, :, :, i))
@@ -140,7 +140,7 @@ function mic2mp4(filename::AbstractString;
         normalize!(data)
     end
 
-    SMLMVis.save_to_mp4(filename * ".mp4", data, fps=fps, crf=crf)
+    SMLMVis.save_to_mp4(savefilename * ".mp4", data, fps=fps, crf=crf)
 
     return nothing
 end
