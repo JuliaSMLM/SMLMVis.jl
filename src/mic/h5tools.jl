@@ -1,16 +1,21 @@
 
+"""
+    isMIC(filename::AbstractString)
 
-# read an h5 file and save the data to an mp4 file. 
+Check if an HDF5 file has the expected group structure for a MIC file.
 
-function is_MIC(filename::AbstractString)
+# Arguments
+- `filename::AbstractString`: The name of the HDF5 file to check.
+
+# Returns
+- `out::Bool`: `true` if the file has the expected group structure, `false` otherwise.
+"""
+function isMIC(filename::AbstractString)
     # Open HDF5 file
     file = h5open(filename, "r")
 
-    # Show group structure of file
-    show_tree(file)
-
     # Check if file has expected group structure
-    if haskey(file, "Channel01") && haskey(file, "Zposition001")
+    if haskey(file, "Channel01/Zposition001")
         println("File $filename has expected group structure.")
         out = true
     else
@@ -18,18 +23,24 @@ function is_MIC(filename::AbstractString)
         out = false
     end
 
-    # Close HDF5 file
     close(file)
     return out
 end
 
-function count_datasets(filename::AbstractString; groupname::AbstractString="Channel01/Zposition001")
-    file = h5open(fn, "r")
-    HDF5.show_tree(file)
-    # data = h5read(file)
+"""
+    count_datasets(filename::AbstractString; groupname::AbstractString="Channel01/Zposition001")
 
-    # Get list of object names in group
-    object_names = names(file[groupname])
+Count the number of datasets in an HDF5 file.
+
+# Arguments
+- `filename::AbstractString`: The name of the HDF5 file to count datasets in.
+- `groupname::AbstractString`: The name of the group to count datasets in. Default is "Channel01/Zposition001".
+
+# Returns
+- `n_datasets::Int`: The number of datasets in the specified group.
+"""
+function count_datasets(filename::AbstractString; groupname::AbstractString="Channel01/Zposition001")
+    file = h5open(filename, "r")
 
     # Get list of object names in group
     object_names = keys(file[groupname])
@@ -38,42 +49,82 @@ function count_datasets(filename::AbstractString; groupname::AbstractString="Cha
     return n_datasets
 end
 
-function readMIC(filename::AbstractString; groupname::AbstractString="Channel01/Zposition001"; datasetnum::Int=1)
-    # Open HDF5 file
+"""
+    readMIC(filename::AbstractString;
+        groupname::AbstractString="Channel01/Zposition001",
+        datasetnum::Int=1)
 
-    if ~is_MIC(filename)
+Read data from a MIC HDF5 file.
+
+# Arguments
+- `filename::AbstractString`: The name of the HDF5 file to read data from.
+- `groupname::AbstractString`: The name of the group to read data from. Default is "Channel01/Zposition001".
+- `datasetnum::Int`: The number of the dataset to read. Default is 1.
+
+# Returns
+- `data::Array`: The data read from the specified dataset.
+"""
+function readMIC(filename::AbstractString;
+    groupname::AbstractString="Channel01/Zposition001",
+    datasetnum::Int=1)
+
+
+    if ~isMIC(filename)
         @error "File $filename is not a MIC file."
     end
 
-    file = h5open(filename, "r")
-
+    # Count number of datasets in group
     ndatasets = count_datasets(filename)
-
     if datasetnum > ndatasets
         @error "Dataset number $datasetnum is greater than the number of datasets in the file ($ndatasets)."
     end
 
-    # Make dataset name from dataset number
     datagroupname = "Data" * lpad(datasetnum, 4, "0")
-    datasetname = datagroupname * "/" * datagroupname
+    datasetname = groupname * "/" * datagroupname * "/" * datagroupname
 
     # Read data from dataset
-    data = h5read(file, datasetname)
+    data = h5read(filename, datasetname)
 
     # Close HDF5 file
-    close(file)
+    # close(file)
     return data
 end
 
-function mp4(filename::AbstractString; 
-    savefilename::Union{nothing,AbstractString}=nothing,
-    groupname::AbstractString="Channel01/Zposition001"; 
-    datasetnum::Int=1, 
-    fps::Int=30, 
+"""
+    mic2mp4(filename::AbstractString;
+        savefilename::Union{Nothing,AbstractString}=nothing,
+        groupname::AbstractString="Channel01/Zposition001",
+        datasetnum::Int=1,
+        framenormalize::Bool=false,
+        fps::Int=30,
+        crf::Int=23)
+
+Convert a MIC HDF5 file to an MP4 video.
+
+# Arguments
+- `filename::AbstractString`: The name of the HDF5 file to convert.
+- `savefilename::Union{Nothing,AbstractString}`: The name of the output MP4 file. If `nothing`, the output file is named after the input file. Default is `nothing`.
+- `groupname::AbstractString`: The name of the group to convert. Default is "Channel01/Zposition001".
+- `datasetnum::Int`: The number of the dataset to convert. Default is 1.
+- `framenormalize::Bool`: Whether to normalize each frame of the dataset individually. Default is `false`.
+- `fps::Int`: The frames per second of the output video. Default is 30.
+- `crf::Int`: The constant rate factor of the output video. Default is 23.
+
+# Returns
+- `nothing`
+
+This function converts a MIC HDF5 file to an MP4 video using the specified group, dataset number, frames per second, and constant rate factor. The output video is saved to the specified output file, or named after the input file if no output file is specified. If `framenormalize` is `true`, each frame of the dataset is normalized individually. The function returns `nothing`.
+"""
+function mic2mp4(filename::AbstractString;
+    savefilename::Union{Nothing,AbstractString}=nothing,
+    groupname::AbstractString="Channel01/Zposition001",
+    datasetnum::Int=1,
+    framenormalize::Bool=false,
+    fps::Int=30,
     crf::Int=23)
-    
+
     # Read data from MIC file
-    data = readMIC(filename, groupname=groupname, datasetnum=datasetnum)
+    data = Float32.(readMIC(filename, groupname=groupname, datasetnum=datasetnum))
 
     # Save data to mp4 file
     if isnothing(savefilename)
@@ -81,7 +132,49 @@ function mp4(filename::AbstractString;
         savefilename = basefilename * ".mp4"
     end
 
-    SMLMVis.save_to_mp4(data, filename * ".mp4", fps=fps, crf=crf)
+    if framenormalize
+        for i in 1:size(data)[3]
+            normalize!(view(data, :, :, i))
+        end
+    else
+        normalize!(data)
+    end
+
+    SMLMVis.save_to_mp4(filename * ".mp4", data, fps=fps, crf=crf)
+
+    return nothing
+end
+
+"""
+    readMIC(filename::AbstractString;
+        groupname::AbstractString="Channel01/Zposition001",
+        datasetnum::Int=1)
+
+Read data from a MIC HDF5 file.
+
+# Arguments
+- `filename::AbstractString`: The name of the HDF5 file to read data from.
+- `groupname::AbstractString`: The name of the group to read data from. Default is "Channel01/Zposition001".
+- `datasetnum::Int`: The number of the dataset to read. Default is 1.
+
+# Returns
+- `data::Array`: The data read from the specified dataset.
+"""
+function normalize!(arr::AbstractArray{<:Real};
+    minval::Union{Real,Nothing}=nothing,
+    maxval::Union{Real,Nothing}=nothing)
+
+    # Get min and max values of array
+    if isnothing(minval)
+        minval = minimum(arr)
+    end
+    if isnothing(maxval)
+        maxval = maximum(arr)
+    end
+
+    # Normalize array
+    arr .= (arr .- minval) ./ (maxval - minval)
+    arr .= clamp.(arr, 0, 1)
 
     return nothing
 end
