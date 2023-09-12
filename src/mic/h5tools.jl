@@ -83,8 +83,6 @@ function readMIC(filename::AbstractString;
     # Read data from dataset
     data = h5read(filename, datasetname)
 
-    # Close HDF5 file
-    # close(file)
     return data
 end
 
@@ -140,7 +138,7 @@ function mic2mp4(filename::AbstractString;
         normalize!(data)
     end
 
-    SMLMVis.save_to_mp4(savefilename * ".mp4", data, fps=fps, crf=crf)
+    SMLMVis.save_to_mp4(savefilename, data, fps=fps, crf=crf)
 
     return nothing
 end

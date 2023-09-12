@@ -4,3 +4,7 @@
 /Manifest.toml
 /docs/build/
 dev/Manifest.toml
+*.h5
+*.mp4
+*.png
+docs/Manifest.toml
