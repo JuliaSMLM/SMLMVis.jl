@@ -16,6 +16,7 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Blob Rendering" => "blob_rendering.md",
     ],
 )
 

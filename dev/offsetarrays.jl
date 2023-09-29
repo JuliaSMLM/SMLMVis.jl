@@ -1,7 +1,7 @@
-
+using Revise
 using SMLMVis
 using Images
-using ColorSchemes
+# using ColorSchemes
 
 sz = 256
 
@@ -12,7 +12,7 @@ z = rand(-1:.01:1, n_blobs)
 σ_x = rand(n_blobs)
 σ_y = rand(n_blobs)
 
-@time out = SMLMVis.GaussRender.render_blobs((1,sz), (1,sz), 
+@time out = render_blobs((1,sz), (1,sz), 
 x, y, σ_x, σ_y; z = z)
 
 save("test.png", out)
