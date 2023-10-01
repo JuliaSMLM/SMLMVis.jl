@@ -1,4 +1,5 @@
 
+
 """
 render_blobs(
     x_range::Tuple{Int,Int},
@@ -11,7 +12,9 @@ render_blobs(
     n_sigmas::Real=3,
     colormap::Union{Nothing,Symbol}=nothing,
     z::Union{Nothing,Vector{<:Real}}=nothing,
-    z_range::Union{Nothing,Tuple{Real,Real}}=nothing
+    z_range::Union{Nothing,Tuple{Real,Real}}=nothing,
+    zoom::Int=1,
+    percentile_cutoff::Real=0.99
     )
 
 Render a stack of 2D Gaussian blobs as a single image.
@@ -28,6 +31,8 @@ Render a stack of 2D Gaussian blobs as a single image.
 - `colormap::Union{Nothing,Symbol}=nothing`: The name of the colormap to use for colorizing the image. Valid options are `:viridis`, `:plasma`, `:inferno`, `:magma`, `:cividis`, `:rainbow_bgyr_35_85_c72_n256`, `:hot`, `:cool`, `:spring`, `:summer`, `:autumn`, `:winter`, `:bone`, `:copper`, `:pink`, `:gray`, `:binary`, `:gist_earth`, `:terrain`, `:ocean`, `:jet`, `:nipy_spectral`, `:gist_ncar`, `:gist_rainbow`, `:hsv`, `:flag`, `:prism`, `:flag_r`, `:prism_r`, `:rainbow`, `:rainbow_r`, `:seismic`, `:seismic_r`, `:brg`, `:brg_r`, `:bwr`, `:bwr_r`, `:coolwarm`, `:coolwarm_r`, `:PiYG`, `:PiYG_r`, `:PRGn`, `:PRGn_r`, `:PuOr`, `:PuOr_r`, `:RdBu`, `:RdBu_r`, `:RdGy`, `:RdGy_r`, `:RdYlBu`, `:RdYlBu_r`, `:RdYlGn`, `:RdYlGn_r`, `:Spectral`, `:Spectral_r`, `:PuBu`, `:PuBu_r`, `:BuPu`, `:BuPu_r`, `:YlGn`, `:YlGn_r`, `:YlGnBu`, `:YlGnBu_r`, `:GnBu`, `:GnBu_r`, `:PuRd`, `:PuRd_r`, `:OrRd`, `:OrRd_r`, `:YlOrBr`, `:YlOrBr_r`, `:YlOrRd`, `:YlOrRd_r`, `:Reds`, `:Reds_r`, `:Greens`, `:Greens_r`, `:Blues`, `:Blues_r`, `:Purples`, `:Purples_r`, `:Oranges`, `:Oranges_r`, `:Greys`, `:Greys_r`, `:Pastel1`, `:Pastel1_r`, `:Pastel2`, `:Pastel2_r`, `:Set1`, `:Set1_r`, `:Set2`, `:Set2_r`, `:Set3`, `:Set3_r`, `:tab10`, `:tab10_r`, `:tab20`, `:tab20_r`, `:tab20b`, `:tab20b_r`, `:tab20c`, `:tab20c_r`.
 - `z::Union{Nothing,Vector{<:Real}}=nothing`: A vector of values to use for colorizing the image. If `nothing`, the image will be colorized based on intensity.
 - `z_range::Union{Nothing,Tuple{Real,Real}}=nothing`: The range of values to use for colorizing the image. If `nothing`, the range will be determined automatically from the values in `z`.
+- `zoom::Int=1`: The zoom factor to apply to the image.
+- `percentile_cutoff::Real=0.99`: The percentile cutoff for intensity scaling.
 
 # Returns
 - `final_image::OffsetArray`: The rendered image as a 2D array of RGB values.
@@ -43,17 +48,19 @@ function render_blobs(
     n_sigmas::Real=3,
     colormap::Union{Nothing,Symbol}=nothing,
     z::Union{Nothing,Vector{<:Real}}=nothing,
-    z_range::Union{Nothing,Tuple{Real,Real}}=nothing
+    z_range::Union{Nothing,Tuple{Real,Real}}=nothing,
+    zoom::Int=1,
+    percentile_cutoff::Real=0.99
     )
 
     n_blobs = length(x)
 
     # calculate the size of the roi
     max_sigma = max(maximum(σ_x), maximum(σ_y))
-    box_size = Int(ceil(2 * n_sigmas * max_sigma))
+    box_size = Int(ceil(2 * n_sigmas * max_sigma * zoom))
 
     # calculate the range or the rois
-    range_tuples = calc_range.(x, y, box_size, Ref(x_range), Ref(y_range))
+    range_tuples = calc_range.(x, y, box_size, Ref(x_range .* zoom), Ref(y_range .* zoom), zoom)
 
     # generate an empty stack of OffsetArrays
     rois = Vector{OffsetArray{Float32,2}}(undef, n_blobs)
@@ -66,11 +73,20 @@ function render_blobs(
 
     # render the blobs
     for i in 1:n_blobs
-        blob!(rois[i], x[i], y[i], σ_x[i], σ_y[i], normalization)
+        blob!(rois[i], x[i], y[i], σ_x[i], σ_y[i], normalization, zoom)
     end
 
     # combine the rois into a single image
-    final_image = combine_rois(rois, x_range, y_range; z, z_range, colormap)
+
+    if isnothing(z) && isnothing(colormap)
+        cmap = ColorSchemes.hot
+    elseif !isnothing(z) && isnothing(colormap)
+        cmap = ColorSchemes.rainbow_bgyr_35_85_c72_n256
+    else
+        cmap = getfield(ColorSchemes, colormap)
+    end
+
+    final_image = combine_rois(rois, x_range .* zoom, y_range .* zoom, cmap; z, z_range, percentile_cutoff)
 
     return final_image
 end
@@ -86,7 +102,8 @@ render_blobs(smld::SMLMData.SMLD2D;
 function render_blobs(smld::SMLMData.SMLD2D; 
     normalization::Symbol=:integral,
     n_sigmas::Real=3,
-    colormap::Symbol=:hot
+    colormap::Symbol=:hot,
+    zoom::Int=1
     )
 
     return render_blobs(
@@ -116,7 +133,8 @@ function render_blobs(smld::SMLMData.SMLD3D;
     normalization::Symbol=:integral,
     n_sigmas::Real=3,
     colormap::Symbol=:rainbow_bgyr_35_85_c72_n256,
-    z_range::Union{Nothing,Tuple{Real,Real}}=nothing
+    z_range::Union{Nothing,Tuple{Real,Real}}=nothing,
+    zoom::Int=1
     )
 
     return render_blobs(
