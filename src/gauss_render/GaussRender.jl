@@ -1,3 +1,14 @@
+"""
+    module GaussRender
+
+Methods for rendering Gaussian blobs into images.
+
+The primary exported function is the `render_blobs` function, which takes a
+`SMLMData.SMLD` structure and renders it into an image. The image is returned
+as a `ColorTypes.RGB{Float32}` array.
+
+This can be saved as a PNG file using the `save` function from the `Images` package.
+"""
 module GaussRender
 
 using Images

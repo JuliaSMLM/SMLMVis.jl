@@ -115,7 +115,8 @@ function render_blobs(smld::SMLMData.SMLD2D;
         smld.σ_y;
         normalization=normalization,
         n_sigmas=n_sigmas,
-        colormap=colormap
+        colormap=colormap,
+        zoom
     )
 
 end
@@ -148,7 +149,8 @@ function render_blobs(smld::SMLMData.SMLD3D;
         n_sigmas=n_sigmas,
         colormap=colormap,
         z=smld.z,
-        z_range=(minimum(smld.z), maximum(smld.z))
+        z_range=(minimum(smld.z), maximum(smld.z)),
+        zoom
     )
 
 end
