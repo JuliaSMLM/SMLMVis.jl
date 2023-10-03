@@ -20,7 +20,9 @@ GaussRender
 2D SMLM images will render with the `hot` colormap by default.  
 
 ```@example
+using SMLMVis
 using SMLMSim
+using Images
 
 smld_true, smld_model, smld_noisy = SMLMSim.sim(;
     ρ=10,
@@ -46,7 +48,9 @@ save("nmer2d.png", out) # hide
 
 3D SMLM images will render with a rainbow colormap by default. 
 ```@example
+using SMLMVis
 using SMLMSim
+using Images
 
 smld_true, smld_model, smld_noisy = SMLMSim.sim(;
     ρ=10,
