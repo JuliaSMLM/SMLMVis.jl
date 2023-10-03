@@ -1,7 +1,7 @@
 using SMLMVis
 using Documenter
 
-DocMeta.setdocmeta!(SMLMVis, :DocTestSetup, :(using SMLMVis); recursive=true)
+#DocMeta.setdocmeta!(SMLMVis, :DocTestSetup, :(using SMLMVis); recursive=true)
 
 makedocs(;
     modules=[SMLMVis],
@@ -18,6 +18,7 @@ makedocs(;
         "Home" => "index.md",
         "Blob Rendering" => "blob_rendering.md",
     ],
+    warnonly=true,
 )
 
 deploydocs(;

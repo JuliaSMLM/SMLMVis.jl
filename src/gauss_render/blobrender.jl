@@ -1,6 +1,6 @@
 
 """
-blob!(roi::OffsetArray, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol)
+    blob!(roi::OffsetArray, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol)
 
 Populate the `roi` array with a 2D Gaussian blob centered at `(x, y)` with standard deviations `σ_x` and `σ_y`.
 
@@ -34,7 +34,7 @@ end
 
 
 """
-calc_range(x::Real, y::Real, box_size::Int, x_range::Tuple{Int,Int}, y_range::Tuple{Int,Int})
+    calc_range(x::Real, y::Real, box_size::Int, x_range::Tuple{Int,Int}, y_range::Tuple{Int,Int})
 
 Calculate the starting x- and y-coordinates of a box centered at `(x, y)` with a given size, within the specified x- and y-ranges.
 
@@ -98,7 +98,7 @@ end
 end
 
 """
-combine_rois(rois::Vector{<:OffsetArray}, x_range::Tuple{Int,Int}, y_range::Tuple{Int,Int};
+    combine_rois(rois::Vector{<:OffsetArray}, x_range::Tuple{Int,Int}, y_range::Tuple{Int,Int};
     colormap::Union{Nothing,Symbol}=nothing,
     z::Union{Nothing,Vector{<:Real}}=nothing,
     z_range::Union{Nothing,Tuple{Real,Real}}=nothing
