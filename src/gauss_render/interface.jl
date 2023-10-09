@@ -51,32 +51,23 @@ function render_blobs(
     z_range::Union{Nothing,Tuple{Real,Real}}=nothing,
     zoom::Int=1,
     percentile_cutoff::Real=0.99
-    )
+)
 
-    n_blobs = length(x)
+    x_range = x_range .*zoom
+    y_range = y_range .* zoom
 
-    # calculate the size of the roi
-    max_sigma = max(maximum(σ_x), maximum(σ_y))
-    box_size = Int(ceil(2 * n_sigmas * max_sigma * zoom))
+    # Create a larger array to act as our final image
+    # final_image = OffsetArray(zeros(RGB{Float32},
+    #         y_range[2] - y_range[1] + 1,
+    #         x_range[2] - x_range[1] + 1),
+    #     y_range[1]:y_range[2],
+    #     x_range[1]:x_range[2])
 
-    # calculate the range or the rois
-    range_tuples = calc_range.(x, y, box_size, Ref(x_range .* zoom), Ref(y_range .* zoom), zoom)
-
-    # generate an empty stack of OffsetArrays
-    rois = Vector{OffsetArray{Float32,2}}(undef, n_blobs)
-    for i in 1:n_blobs
-        rois[i] = OffsetArray(zeros(Float32, box_size, box_size), 
-        range_tuples[i][1],
-        range_tuples[i][2] 
-        )
-    end
-
-    # render the blobs
-    for i in 1:n_blobs
-        blob!(rois[i], x[i], y[i], σ_x[i], σ_y[i], normalization, zoom)
-    end
-
-    # combine the rois into a single image
+    final_image = RGBArray{Float32}((
+        y_range[2] - y_range[1] + 1,
+        x_range[2] - x_range[1] + 1),
+    (y_range[1]:y_range[2],
+    x_range[1]:x_range[2]))
 
     if isnothing(z) && isnothing(colormap)
         cmap = ColorSchemes.hot
@@ -86,9 +77,63 @@ function render_blobs(
         cmap = getfield(ColorSchemes, colormap)
     end
 
-    final_image = combine_rois(rois, x_range .* zoom, y_range .* zoom, cmap; z, z_range, percentile_cutoff)
+    n_blobs = length(x)
 
-    return final_image
+    # calculate the size of the roi
+    max_sigma = max(maximum(σ_x), maximum(σ_y))
+    box_size = Int(ceil(2 * n_sigmas * max_sigma * zoom))
+
+    println(box_size)
+
+    EIGHT_GB = 8 * 1024 * 1024 * 1024
+
+    # Total memory size for the 3D array
+    total_size = box_size * box_size * n_blobs * sizeof(Float32)
+
+    # Number of sections required to fit the 3D array into 8 GB sections
+    num_sections = ceil(Int, total_size / EIGHT_GB)
+
+    # Size of each section along the third dimension
+    section_size = floor(Int, n_blobs / num_sections)
+
+    for n in 1:num_sections
+
+        # calculate range of roi indexes to calculate
+
+        n_start = (n - 1) * section_size + 1
+        n_end = min(n_start + section_size - 1, n_blobs)
+        n_blobs_section = n_end - n_start + 1
+        n_range = n_start:n_end
+
+        # calculate the range of the rois in final image
+        range_tuples = calc_range.(x[n_range], y[n_range], box_size, Ref(x_range), Ref(y_range), zoom)
+
+        # generate an empty stack of OffsetArrays
+        rois = Vector{OffsetArray{Float32,2}}(undef, n_blobs_section)
+        for i in 1:n_blobs_section
+            rois[i] = OffsetArray(zeros(Float32, box_size, box_size),
+                range_tuples[i][1],
+                range_tuples[i][2]
+            )
+        end
+
+        @info "Rendering Blobs"
+        # render the blobs
+        for i in n_range
+            blob!(rois[i - n_start + 1], x[i], y[i], σ_x[i], σ_y[i], normalization, zoom)
+        end
+
+        # combine the rois into a single image
+        @info "Combining rois"
+        combine_rois!(final_image, rois, cmap;
+            z = z[n_range], z_range)
+
+    end
+
+    quantile_clamp!(final_image, percentile_cutoff)
+
+    final_image = RGB.(final_image.r,final_image.g, final_image.b)
+    return final_image, (cmap, z_range)
 end
 
 """
@@ -99,12 +144,12 @@ render_blobs(smld::SMLMData.SMLD2D;
     )
 
 """
-function render_blobs(smld::SMLMData.SMLD2D; 
+function render_blobs(smld::SMLMData.SMLD2D;
     normalization::Symbol=:integral,
     n_sigmas::Real=3,
     colormap::Symbol=:hot,
     zoom::Int=1
-    )
+)
 
     return render_blobs(
         (1, smld.datasize[2]),
@@ -130,13 +175,13 @@ render_blobs(smld::SMLMData.SMLD3D;
     )
 
 """
-function render_blobs(smld::SMLMData.SMLD3D; 
+function render_blobs(smld::SMLMData.SMLD3D;
     normalization::Symbol=:integral,
     n_sigmas::Real=3,
     colormap::Symbol=:rainbow_bgyr_35_85_c72_n256,
     z_range::Union{Nothing,Tuple{Real,Real}}=nothing,
     zoom::Int=1
-    )
+)
 
     return render_blobs(
         (1, smld.datasize[2]),
