@@ -19,6 +19,7 @@ using Statistics
 
 export render_blobs
 
+include("types.jl")
 include("blobrender.jl")
 include("interface.jl")
 
