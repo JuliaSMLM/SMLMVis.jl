@@ -1,5 +1,6 @@
 [deps]
 Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 MicroscopePSFs = "de9ac726-48a4-48ab-84b0-1c03c7c18929"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 SMLMDeepFit = "cd1e22bb-7bb2-459d-a82d-93d34b459d6b"
