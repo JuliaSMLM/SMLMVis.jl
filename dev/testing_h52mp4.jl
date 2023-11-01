@@ -1,17 +1,39 @@
 using Revise 
 using HDF5
 using SMLMVis
-
+using ImageView
 
 # # TIRF Data 1 sequence
-# dirname = "Y:/Personal Folders/Ellyse/ALFA Tag 488 Hela EGFR"
-# filename = "Cell1-2023-9-6-14-51-2"
-# fn = joinpath(dirname, filename * ".h5")
+dirname = "Y:/Personal Folders/Ellyse/TIRF A431 Cells EGF-AF555 10_27_23"
+filename = "Cell9_561laser5mW_exp0.05_300pM-2023-10-27-14-52-17"
+fn = joinpath(dirname, filename * ".h5")
 
 # file = h5open(fn, "r")
 # HDF5.show_tree(file)
 # # data = h5read(file)
+
+# groupname="Channel01/Zposition001"
+    
+# g =file[groupname]
+#    # Get list of object names in group
+# object_names = keys(file[groupname])
+
+# #check each object is a dataset
+# n_datasets = 0
+# for i in 1:length(object_names)
+#     if isa(g[object_names[i]], HDF5.Dataset)
+#        n_datasets += 1
+#     end
+# end
+# n_datasets
+
 # close(file)
+
+SMLMVis.MIC.count_datasets(fn)
+SMLMVis.MIC.isMIC(fn)
+data = Float32.(SMLMVis.MIC.readMIC(fn, datasetnum=1);)
+SMLMVis.MIC.mic2mp4(fn; crf = 1, fps = 1 )
+imshow(data)
 
 
 # #TIRF Data Multiple sequences
@@ -23,21 +45,23 @@ using SMLMVis
 # # data = h5read(file)
 # close(file)
 
+
 # SeqSRData
-dirname = "P:/IgE_Integrin/23-09-07_IgE647_IntegrinB1-647/5minDNP-BSA/Cell_01/Label_02"
-filename = "Data_2023-9-8-20-12-46.h5"
+dirname = "P:/IgE_Integrin/23-09-07_IgE647_IntegrinB1-647/Resting/Cell_01/Label_01"
+filename = "Data_2023-9-11-12-27-31.h5"
 fn = joinpath(dirname, filename)
 
 # file = h5open(fn, "r")
 # HDF5.show_tree(file)
 # # data = h5read(file)
 
-#  # Get list of object names in group
-#  object_names = names(file[groupname])
-
-#  # Count number of datasets in group
+# # Count number of datasets in group
 #  groupname = joinpath("Channel01", "Zposition001")
 #  groupname = "Channel01/Zposition001"
+
+#   # Get list of object names in group
+#   object_names = names(file[groupname])
+
 
 #  # Get list of object names in group
 #  object_names = keys(file[groupname])

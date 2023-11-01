@@ -77,9 +77,22 @@ function readMIC(filename::AbstractString;
         @error "Dataset number $datasetnum is greater than the number of datasets in the file ($ndatasets)."
     end
 
-    datagroupname = "Data" * lpad(datasetnum, 4, "0")
-    datasetname = groupname * "/" * datagroupname * "/" * datagroupname
 
+    datagroupname = "Data" * lpad(datasetnum, 4, "0")
+    # check if datagroupname is a group or dataset
+
+    file = h5open(filename, "r")
+    g = file[groupname]
+    if isa(g[datagroupname], HDF5.Dataset) # TIRF data
+        @info "This is a TIRF Data file."
+        datasetname = groupname * "/" * datagroupname
+    else # SeqSR data
+        @info "This is a SeqSR Data file."
+        datasetname = groupname * "/" * datagroupname * "/" * datagroupname
+    end
+    
+    close(file)
+    
     # Read data from dataset
     data = h5read(filename, datasetname)
 
