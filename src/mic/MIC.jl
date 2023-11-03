@@ -6,6 +6,7 @@ module MIC
 
 using HDF5
 using MATLAB
+using Statistics
 using SMLMVis
 
 include("h5tools.jl")

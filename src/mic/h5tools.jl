@@ -25,6 +25,18 @@ function isMIC(filename::AbstractString)
     return out
 end
 
+"""
+    isTIRF(filename::AbstractString)
+
+Check if the given HDF5 file contains TIRF (Total Internal Reflection Fluorescence) data.
+
+# Arguments
+- `filename::AbstractString`: The path to the HDF5 file to check.
+
+# Returns
+- `Bool`: Returns `true` if the file contains TIRF data, `false` otherwise.
+
+"""
 function isTIRF(filename::AbstractString)
     # Open HDF5 file
 
@@ -173,36 +185,50 @@ function mic2mp4(filename::AbstractString;
     datasetnum::Int=1,
     framenormalize::Bool=false,
     fps::Int=30,
-    crf::Int=10)
+    crf::Int=23,
+    percentilerange::Union{Real,Nothing}=nothing,
+    zoom::Int=1
+    )
 
     # Read data from MIC file
     @info "Reading data from $filename"
     data = Float32.(readMIC(filename, groupname=groupname, datasetnum=datasetnum))
 
-    # Save data to mp4 file
+    # Set savefilename
     if isnothing(savefilename)
-        basefilename = split(filename, ".")[1]
+        basefilename, _ = splitext(filename)  # This will handle filenames with multiple dots correctly
         savefilename = basefilename * ".mp4"
     end
-
-    percentilerange = 0.98
 
     @info "normalizing data"
     if framenormalize
         for i in 1:size(data)[3]
-            normalize!(view(data, :, :, i))
+            normalize!(view(data, :, :, i); percentilerange=percentilerange)
         end
     else
-        normalize!(data)
+        normalize!(data; percentilerange=percentilerange)
     end
 
-    SMLMVis.save_to_mp4(savefilename, data, fps=fps, crf=crf)
+    SMLMVis.save_to_mp4(savefilename, data, fps=fps, crf=crf,zoom=zoom)
 
     return nothing
 end
 
 
+"""
+    normalize!(arr::AbstractArray{<:Real}; minval::Union{Real,Nothing}=nothing, maxval::Union{Real,Nothing}=nothing, percentilerange::Union{Real,Nothing}=nothing)
 
+Normalize the input array `arr` in place. The normalization is done based on the minimum and maximum values of the array, or based on a percentile range if `percentilerange` is provided.
+
+# Arguments
+- `arr::AbstractArray{<:Real}`: The array to be normalized.
+- `minval::Union{Real,Nothing}=nothing`: The minimum value to use for normalization. If `nothing`, the minimum value of `arr` is used.
+- `maxval::Union{Real,Nothing}=nothing`: The maximum value to use for normalization. If `nothing`, the maximum value of `arr` is used.
+- `percentilerange::Union{Real,Nothing}=nothing`: The percentile range to use for normalization. If `nothing`, the full range of `arr` is used.
+
+# Returns
+- `nothing`: The function modifies `arr` in place and does not return anything.
+"""
 function normalize!(arr::AbstractArray{<:Real};
     minval::Union{Real,Nothing}=nothing,
     maxval::Union{Real,Nothing}=nothing,
@@ -219,10 +245,10 @@ function normalize!(arr::AbstractArray{<:Real};
     else
         # Get min and max values of array
         if isnothing(minval)
-            minval = quantile(arr, (1 - percentilerange) / 2)
+            minval = quantile(arr[:], (1 - percentilerange) / 2)
         end
         if isnothing(maxval)
-            maxval = quantile(arr, 1 - (1 - percentilerange) / 2)
+            maxval = quantile(arr[:], 1 - (1 - percentilerange) / 2)
         end
 
     end
