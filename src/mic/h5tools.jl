@@ -25,6 +25,30 @@ function isMIC(filename::AbstractString)
     return out
 end
 
+function isTIRF(filename::AbstractString)
+    # Open HDF5 file
+
+    if !isMIC(filename)
+        @error "File $filename is not a MIC file."
+        return false
+    end
+
+    groupname = "Channel01/Zposition001"
+
+    file = h5open(filename, "r")
+    g = file[groupname]
+
+    if isa(g["Data0001"], HDF5.Dataset) # TIRF data
+        close(file)
+        return true
+    else # SeqSR data
+        close(file)
+        return false
+    end
+
+end
+
+
 """
     count_datasets(filename::AbstractString; groupname::AbstractString="Channel01/Zposition001")
 
@@ -38,11 +62,35 @@ Count the number of datasets in an HDF5 file.
 - `n_datasets::Int`: The number of datasets in the specified group.
 """
 function count_datasets(filename::AbstractString; groupname::AbstractString="Channel01/Zposition001")
-    file = h5open(filename, "r")
 
-    # Get list of object names in group
-    object_names = keys(file[groupname])
-    n_datasets = length(object_names)
+    if ~isMIC(filename)
+        @error "File $filename is not a MIC file."
+    end
+
+
+    file = h5open(filename, "r")
+    g = file[groupname]
+    object_names = keys(g)
+
+    if isTIRF(filename) # count datasets
+        n_datasets = 0
+        for i in eachindex(object_names)
+            if isa(g[object_names[i]], HDF5.Dataset)
+                n_datasets += 1
+            end
+        end
+    else
+        # check for group with names Data*
+        n_datasets = 0
+        for i in eachindex(object_names)
+            if occursin(r"Data\d{4}", object_names[i])
+                if isa(g[object_names[i]], HDF5.Group)
+                    n_datasets += 1
+                end
+            end
+        end
+    end
+
     close(file)
     return n_datasets
 end
@@ -77,22 +125,17 @@ function readMIC(filename::AbstractString;
         @error "Dataset number $datasetnum is greater than the number of datasets in the file ($ndatasets)."
     end
 
-
     datagroupname = "Data" * lpad(datasetnum, 4, "0")
     # check if datagroupname is a group or dataset
 
-    file = h5open(filename, "r")
-    g = file[groupname]
-    if isa(g[datagroupname], HDF5.Dataset) # TIRF data
+    if isTIRF(filename)
         @info "This is a TIRF Data file."
         datasetname = groupname * "/" * datagroupname
     else # SeqSR data
         @info "This is a SeqSR Data file."
         datasetname = groupname * "/" * datagroupname * "/" * datagroupname
     end
-    
-    close(file)
-    
+
     # Read data from dataset
     data = h5read(filename, datasetname)
 
@@ -117,7 +160,7 @@ Convert a MIC HDF5 file to an MP4 video.
 - `datasetnum::Int`: The number of the dataset to convert. Default is 1.
 - `framenormalize::Bool`: Whether to normalize each frame of the dataset individually. Default is `false`.
 - `fps::Int`: The frames per second of the output video. Default is 30.
-- `crf::Int`: The constant rate factor of the output video. Default is 23.
+- `crf::Int`: The constant rate factor of the output video. Default is 10.
 
 # Returns
 - `nothing`
@@ -130,7 +173,7 @@ function mic2mp4(filename::AbstractString;
     datasetnum::Int=1,
     framenormalize::Bool=false,
     fps::Int=30,
-    crf::Int=23)
+    crf::Int=10)
 
     # Read data from MIC file
     @info "Reading data from $filename"
@@ -141,6 +184,8 @@ function mic2mp4(filename::AbstractString;
         basefilename = split(filename, ".")[1]
         savefilename = basefilename * ".mp4"
     end
+
+    percentilerange = 0.98
 
     @info "normalizing data"
     if framenormalize
@@ -156,31 +201,30 @@ function mic2mp4(filename::AbstractString;
     return nothing
 end
 
-"""
-    readMIC(filename::AbstractString;
-        groupname::AbstractString="Channel01/Zposition001",
-        datasetnum::Int=1)
 
-Read data from a MIC HDF5 file.
 
-# Arguments
-- `filename::AbstractString`: The name of the HDF5 file to read data from.
-- `groupname::AbstractString`: The name of the group to read data from. Default is "Channel01/Zposition001".
-- `datasetnum::Int`: The number of the dataset to read. Default is 1.
-
-# Returns
-- `data::Array`: The data read from the specified dataset.
-"""
 function normalize!(arr::AbstractArray{<:Real};
     minval::Union{Real,Nothing}=nothing,
-    maxval::Union{Real,Nothing}=nothing)
+    maxval::Union{Real,Nothing}=nothing,
+    percentilerange::Union{Real,Nothing}=nothing)
 
-    # Get min and max values of array
-    if isnothing(minval)
-        minval = minimum(arr)
-    end
-    if isnothing(maxval)
-        maxval = maximum(arr)
+    if isnothing(percentilerange)
+        # Get min and max values of array
+        if isnothing(minval)
+            minval = minimum(arr)
+        end
+        if isnothing(maxval)
+            maxval = maximum(arr)
+        end
+    else
+        # Get min and max values of array
+        if isnothing(minval)
+            minval = quantile(arr, (1 - percentilerange) / 2)
+        end
+        if isnothing(maxval)
+            maxval = quantile(arr, 1 - (1 - percentilerange) / 2)
+        end
+
     end
 
     # Normalize array

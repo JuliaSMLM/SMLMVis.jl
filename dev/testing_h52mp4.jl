@@ -51,27 +51,10 @@ dirname = "P:/IgE_Integrin/23-09-07_IgE647_IntegrinB1-647/Resting/Cell_01/Label_
 filename = "Data_2023-9-11-12-27-31.h5"
 fn = joinpath(dirname, filename)
 
-# file = h5open(fn, "r")
-# HDF5.show_tree(file)
-# # data = h5read(file)
-
-# # Count number of datasets in group
-#  groupname = joinpath("Channel01", "Zposition001")
-#  groupname = "Channel01/Zposition001"
-
-#   # Get list of object names in group
-#   object_names = names(file[groupname])
-
-
-#  # Get list of object names in group
-#  object_names = keys(file[groupname])
-#  n_datasets = length(object_names)
-# close(file)
-
+SMLMVis.MIC.isMIC(fn)
+SMLMVis.MIC.isTIRF(fn)
 
 SMLMVis.MIC.count_datasets(fn)
-
-SMLMVis.MIC.isMIC(fn)
 
 data = Float32.(SMLMVis.MIC.readMIC(fn, datasetnum=1);)
 SMLMVis.MIC.normalize!(data)
