@@ -10,6 +10,7 @@ Save an array of 3D images to an MP4 video.
 - `arr::Array{<:Real,3}`: The array of 3D images to save.
 - `fps::Int`: The frames per second of the output video. Default is 30.
 - `crf::Int`: The constant rate factor of the output video. Default is 23.
+- `zoom::Int`: The zoom factor to apply to each frame. Default is 1.
 
 # Returns
 - `nothing`
@@ -17,14 +18,11 @@ Save an array of 3D images to an MP4 video.
 This function saves an array of 3D images to an MP4 video using the specified frames per second and constant rate factor. The output video is saved to the specified output file. The function returns `nothing`.
 """
 function save_to_mp4(filename::AbstractString, arr::Array{<:Real,3}; fps::Int=30, crf::Int=23, zoom::Int=1)
-
-
     @info "Converting array to imgstack"
     imgstack = arr2imgstack(arr; zoom=zoom)
     @info "Saving video to $filename"
     encoder_options = (crf=crf, preset="medium")
     VideoIO.save(filename, imgstack, framerate=fps, encoder_options=encoder_options)
-
     return nothing
 end
 
@@ -35,6 +33,8 @@ Convert an array of 3D images to an array of arrays of type `N0f8`.
 
 # Arguments
 - `arr::Array{<:Real,3}`: The array of 3D images to convert.
+- `zoom::Int`: The zoom factor to apply to each frame. Default is 1.
+
 
 # Returns
 - `imgstack::Array{Array{Gray{N0f8},2}}`
@@ -64,6 +64,18 @@ function arr2imgstack(arr::Array{<:Real,3}; zoom::Int=1)
     return imgstack
 end
 
+"""
+    block_resample(array::Array, zoom::Int)
+
+Resample an array by repeating each index a specified number of times. This function effectively increases the size of the array by a factor of `zoom` in each dimension.
+
+# Arguments
+- `array::Array`: The array to be resampled.
+- `zoom::Int`: The factor by which to increase the size of the array.
+
+# Returns
+- `Array`: The resampled array.
+"""
 function block_resample(array::Array, zoom::Int)
     # Create an indexing array for each dimension that repeats each index zoom_factor times
     rows = repeat(1:size(array, 1), inner = zoom)

@@ -173,6 +173,8 @@ Convert a MIC HDF5 file to an MP4 video.
 - `framenormalize::Bool`: Whether to normalize each frame of the dataset individually. Default is `false`.
 - `fps::Int`: The frames per second of the output video. Default is 30.
 - `crf::Int`: The constant rate factor of the output video. Default is 10.
+- `percentilerange::Union{Real,Nothing}=nothing`: The percentile range to use for normalization. If `nothing`, the full range of `arr` is used.
+- `zoom::Int`: The zoom factor to apply to each frame. Default is 1.
 
 # Returns
 - `nothing`
@@ -197,7 +199,8 @@ function mic2mp4(filename::AbstractString;
     # Set savefilename
     if isnothing(savefilename)
         basefilename, _ = splitext(filename)  # This will handle filenames with multiple dots correctly
-        savefilename = basefilename * ".mp4"
+        datagroupname = "Data" * lpad(datasetnum, 4, "0")
+        savefilename = basefilename * "_" * datagroupname * ".mp4"
     end
 
     @info "normalizing data"

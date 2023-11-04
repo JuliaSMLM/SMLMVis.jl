@@ -13,3 +13,7 @@ SMLMVis.MIC.isMIC(fn)
 data = Float32.(SMLMVis.MIC.readMIC(fn, datasetnum=1);)
 SMLMVis.MIC.mic2mp4(fn; fps = 20, percentilerange = 0.99, zoom = 4)
 # imshow(data)
+
+dirname = "C:/Users/klidke/Downloads"
+files = filter(f -> endswith(f, ".h5"), readdir(dirname))
+
