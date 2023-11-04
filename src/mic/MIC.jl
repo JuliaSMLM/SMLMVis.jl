@@ -5,7 +5,6 @@ Tools and utilities for the visualization of data collected via the
 module MIC
 
 using HDF5
-using MATLAB
 using Statistics
 using SMLMVis
 

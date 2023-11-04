@@ -1,10 +1,10 @@
 module SMLMVis
-# 
-using GLMakie
+ 
+# using GLMakie
 using Images
 using VideoIO
 
-include("visualization.jl")
+# include("visualization.jl")
 include("video.jl")
 include("mic/MIC.jl")
 include("gauss_render/GaussRender.jl")
