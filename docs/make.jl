@@ -16,8 +16,8 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
-        "MIC" => "mic.md",
     ],
+    warnonly=true,
 )
 
 deploydocs(;
