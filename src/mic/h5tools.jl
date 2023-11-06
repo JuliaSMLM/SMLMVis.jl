@@ -154,6 +154,7 @@ function readMIC(filename::AbstractString;
     return data
 end
 
+
 """
     mic2mp4(filename::AbstractString;
         savefilename::Union{Nothing,AbstractString}=nothing,
@@ -161,13 +162,22 @@ end
         datasetnum::Int=1,
         framenormalize::Bool=false,
         fps::Int=30,
-        crf::Int=23)
+        crf::Int=23,
+        percentilerange::Union{Real,Nothing}=nothing,
+        zoom::Int=1,
+        frame_range::Union{AbstractRange, Nothing}=nothing)
 
 Convert a MIC HDF5 file to an MP4 video.
+
+This function converts a MIC HDF5 file to an MP4 video using the specified group, dataset number, 
+    frames per second, and constant rate factor. The output video is saved to the specified output file, 
+    or named after the input file if no output file is specified. If `framenormalize` is `true`, 
+    each frame of the dataset is normalized individually. The function returns `nothing`.
 
 # Arguments
 - `filename::AbstractString`: The name of the HDF5 file to convert.
 - `savefilename::Union{Nothing,AbstractString}`: The name of the output MP4 file. If `nothing`, the output file is named after the input file. Default is `nothing`.
+- `savedir::Union{Nothing,AbstractString}`: The output directory. If `nothing` path is the same as the input file. Default is `nothing`.
 - `groupname::AbstractString`: The name of the group to convert. Default is "Channel01/Zposition001".
 - `datasetnum::Int`: The number of the dataset to convert. Default is 1.
 - `framenormalize::Bool`: Whether to normalize each frame of the dataset individually. Default is `false`.
@@ -175,35 +185,55 @@ Convert a MIC HDF5 file to an MP4 video.
 - `crf::Int`: The constant rate factor of the output video. Default is 10.
 - `percentilerange::Union{Real,Nothing}=nothing`: The percentile range to use for normalization. If `nothing`, the full range of `arr` is used.
 - `zoom::Int`: The zoom factor to apply to each frame. Default is 1.
+- `frame_range::Union{AbstractRange, Nothing}=nothing`: The range of frames to use for the video. If `nothing`, all frames are used.
 
 # Returns
 - `nothing`
-
-This function converts a MIC HDF5 file to an MP4 video using the specified group, dataset number, frames per second, and constant rate factor. The output video is saved to the specified output file, or named after the input file if no output file is specified. If `framenormalize` is `true`, each frame of the dataset is normalized individually. The function returns `nothing`.
 """
 function mic2mp4(filename::AbstractString;
     savefilename::Union{Nothing,AbstractString}=nothing,
+    savedir::Union{Nothing,AbstractString}=nothing,
     groupname::AbstractString="Channel01/Zposition001",
     datasetnum::Int=1,
     framenormalize::Bool=false,
     fps::Int=30,
     crf::Int=23,
     percentilerange::Union{Real,Nothing}=nothing,
-    zoom::Int=1
+    zoom::Int=1,
+    frame_range::Union{AbstractRange, Nothing}=nothing
     )
+
+    # Determine directory of input file
+    inputfile_dir = dirname(filename)
+    # Use input file's directory as default if savedir is not provided
+    save_directory = isnothing(savedir) ? inputfile_dir : savedir
+
+    # Ensure the save directory exists
+    if !isdir(save_directory)
+        mkpath(save_directory)
+    end
 
     # Read data from MIC file
     @info "Reading data from $filename"
     data = Float32.(readMIC(filename, groupname=groupname, datasetnum=datasetnum))
 
-    # Set savefilename
-    if isnothing(savefilename)
-        basefilename, _ = splitext(filename)  # This will handle filenames with multiple dots correctly
-        datagroupname = "Data" * lpad(datasetnum, 4, "0")
-        savefilename = basefilename * "_" * datagroupname * ".mp4"
+    # If frame_range is provided, select the specified frames
+    if !isnothing(frame_range)
+        data = data[:, :, frame_range]
     end
 
-    @info "normalizing data"
+    # Set savefilename
+    if isnothing(savefilename)
+        basefilename, _ = splitext(basename(filename))
+        datagroupname = "Data" * lpad(datasetnum, 4, "0")
+        # Add frame range to the filename if a specific range is provided
+        range_str = !isnothing(frame_range) ? "_Frames$(first(frame_range))to$(last(frame_range))" : ""
+        savefilename = joinpath(save_directory, basefilename * "_" * datagroupname * range_str * ".mp4")
+    else
+        savefilename = joinpath(save_directory, savefilename)
+    end
+
+    @info "Normalizing data"
     if framenormalize
         for i in 1:size(data)[3]
             normalize!(view(data, :, :, i); percentilerange=percentilerange)
@@ -212,11 +242,12 @@ function mic2mp4(filename::AbstractString;
         normalize!(data; percentilerange=percentilerange)
     end
 
-    SMLMVis.save_to_mp4(savefilename, data, fps=fps, crf=crf,zoom=zoom)
+    # Placeholder for saving to MP4
+    SMLMVis.save_to_mp4(savefilename, data, fps=fps, crf=crf, zoom=zoom)
 
     return nothing
 end
-
+   
 
 """
     normalize!(arr::AbstractArray{<:Real}; minval::Union{Real,Nothing}=nothing, maxval::Union{Real,Nothing}=nothing, percentilerange::Union{Real,Nothing}=nothing)

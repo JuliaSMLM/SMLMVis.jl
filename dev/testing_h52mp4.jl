@@ -67,3 +67,18 @@ im = data[:,:,1:1000]
 
 @time SMLMVis.MIC.mic2mp4(fn)
 
+
+# SeqSRData
+dirname = "P:/IgE_Integrin/23-09-07_IgE647_IntegrinB1-647/Resting/Cell_01/Label_01"
+savedir = "P:/IgE_Integrin/23-09-07_IgE647_IntegrinB1-647/Resting/Results/Cell_01/Label_01"
+filename = "Data_2023-9-11-12-27-31.h5"
+fn = joinpath(dirname, filename)
+
+# Use comprehension over datasets and put results a different Folders
+n = SMLMVis.MIC.count_datasets(fn)
+[mic2mp4(fn; savedir=savedir, fps=20, percentilerange=0.99, datasetnum=i, frame_range=1:50) for i in 1:n]
+
+
+
+
+
