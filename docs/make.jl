@@ -17,6 +17,7 @@ makedocs(;
     pages=[
         "Home" => "index.md",
         "Blob Rendering" => "blob_rendering.md",
+        "MP4 Generation" => "mic.md",
     ],
     warnonly=true,
 )

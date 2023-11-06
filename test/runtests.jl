@@ -13,8 +13,9 @@ using HDF5
             write(dset, rand(UInt16, 100, 100, 10))
         end
         SMLMVis.MIC.mic2mp4("example.h5")
-        @test isfile("example.mp4") 
-        isfile("example.mp4") && rm("example.mp4")
+        @test isfile("example_Data0001.mp4") 
+        isfile("example_Data0001.mp4") && rm("example_Data0001.mp4")
+        isfile("example.h5") && rm("example.h5")
     end
 
     @testset "render_blobs" begin
@@ -25,7 +26,7 @@ using HDF5
         y = [50]
         σ_x = [10]
         σ_y = [10]
-        img = render_blobs(x_range, y_range, x, y, σ_x, σ_y)
+        img,  = render_blobs(x_range, y_range, x, y, σ_x, σ_y)
         @test size(img) == (100, 100)
     
     end

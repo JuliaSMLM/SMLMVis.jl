@@ -8,6 +8,9 @@ using HDF5
 using Statistics
 using SMLMVis
 
+export mic2mp4
+
 include("h5tools.jl")
+
 
 end

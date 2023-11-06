@@ -1,7 +1,7 @@
 
 
 """
-render_blobs(
+    render_blobs(
     x_range::Tuple{Int,Int},
     y_range::Tuple{Int,Int},
     x::Vector{<:Real},
@@ -35,7 +35,7 @@ Render a stack of 2D Gaussian blobs as a single image.
 - `percentile_cutoff::Real=0.99`: The percentile cutoff for intensity scaling.
 
 # Returns
-- `final_image::OffsetArray`: The rendered image as a 2D array of RGB values.
+- `final_image, (cmap, z_range)`: The rendered image as a 2D array of RGB values, colormap and z_range used for rendering. 
 """
 function render_blobs(
     x_range::Tuple{Int,Int},
@@ -125,8 +125,18 @@ function render_blobs(
 
         # combine the rois into a single image
         @info "Combining rois"
-        combine_rois!(final_image, rois, cmap;
+        # println("z_range: ", z_range)
+        # println(n_range)
+        # println(z)
+        # println(z[n_range])
+
+        if isnothing(z)
+            combine_rois!(final_image, rois, cmap;
+                z = nothing, z_range = nothing)
+        else
+            combine_rois!(final_image, rois, cmap;
             z = z[n_range], z_range)
+        end
 
     end
 
@@ -137,7 +147,7 @@ function render_blobs(
 end
 
 """
-render_blobs(smld::SMLMData.SMLD2D; 
+    render_blobs(smld::SMLMData.SMLD2D; 
     normalization::Symbol=:integral,
     n_sigmas::Real=3,
     colormap::Symbol=:hot
@@ -167,7 +177,7 @@ function render_blobs(smld::SMLMData.SMLD2D;
 end
 
 """
-render_blobs(smld::SMLMData.SMLD3D; 
+    render_blobs(smld::SMLMData.SMLD3D; 
     normalization::Symbol=:integral,
     n_sigmas::Real=3,
     colormap::Symbol=:rainbow_bgyr_35_85_c72_n256,
