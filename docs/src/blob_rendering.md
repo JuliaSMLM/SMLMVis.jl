@@ -36,7 +36,7 @@ smld_true, smld_model, smld_noisy = SMLMSim.sim(;
     camera=SMLMSim.IdealCamera(; ypixels=32, xpixels=64, pixelsize=0.1)
     ) 
 
-out = render_blobs(smld_noisy; zoom = 20)
+out, = render_blobs(smld_noisy; zoom = 20)
 save("nmer2d.png", out) # hide
 ```
 
@@ -64,7 +64,7 @@ smld_true, smld_model, smld_noisy = SMLMSim.sim(;
     camera=SMLMSim.IdealCamera(; ypixels=32, xpixels=64, pixelsize=0.1)
     ) 
 
-out = render_blobs(smld_noisy; zoom = 20)
+out, = render_blobs(smld_noisy; zoom = 20)
 save("nmer3d.png", out) # hide
 ```
 
