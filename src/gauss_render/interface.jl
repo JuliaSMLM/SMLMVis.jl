@@ -53,8 +53,17 @@ function render_blobs(
     percentile_cutoff::Real=0.99
 )
 
-    x_range = x_range .*zoom
-    y_range = y_range .* zoom
+    # pixels mean center of pixel, so 1 to 256 means 0.5 to 256.5
+
+    if zoom > 1
+        if zoom % 2 == 0
+            x_range = Int.((x_range[1]-0.5, x_range[2]+.5) .* zoom)
+            y_range = Int.((y_range[1]-0.5, y_range[2]+.5) .* zoom)
+        else
+            @error "Zoom must be an even number"
+        end
+    end
+
 
     # Make colormap
     if isnothing(z) && isnothing(colormap)
@@ -81,32 +90,39 @@ function render_blobs(
             x_range[1]:x_range[2],
             1:length(cmap.colors))
     end
-    
+
     if ~isnothing(z)
         if isnothing(z_range)
             z_range = (minimum(z), maximum(z))
         end
-        z = (z .- z_range[1]) ./ (z_range[2] - z_range[1])
     end
+
+    @info "x_range: $x_range, y_range: $y_range, z_range: $z_range"
 
     n_blobs = length(x)
 
     # calculate the size of the roi
     max_sigma = max(maximum(σ_x), maximum(σ_y))
+    min_sigma = min(minimum(σ_x), minimum(σ_y))
     box_size = Int(ceil(2 * n_sigmas * max_sigma * zoom))
 
+    @info "Max sigma: $max_sigma, Min sigma: $min_sigma, Box size: $box_size"
     println(box_size)
 
-    EIGHT_GB = 8 * 1024 * 1024 * 1024
+    FOUR_GB = 4 * 1024 * 1024 * 1024
 
     # Total memory size for the 3D array
     total_size = box_size * box_size * n_blobs * sizeof(Float32)
 
     # Number of sections required to fit the 3D array into 8 GB sections
-    num_sections = ceil(Int, total_size / EIGHT_GB)
+    num_sections = ceil(Int, total_size / FOUR_GB)
 
     # Size of each section along the third dimension
     section_size = floor(Int, n_blobs / num_sections)
+
+    nthreads = Threads.nthreads()
+    @info "Rendering $n_blobs blobs in $num_sections sections of size $section_size"
+    @info "using $box_size x $box_size rois and $nthreads() threads"
 
     for n in 1:num_sections
 
@@ -124,21 +140,23 @@ function render_blobs(
         blobs = Vector{Blob}(undef, n_blobs_section)
         for i in 1:n_blobs_section
             blobs[i] = Blob(OffsetArray(zeros(Float32, box_size, box_size),
-                range_tuples[i][1],
-                range_tuples[i][2]
-            ),
-            isnothing(z) ? 0.0 : z[n_range[i]])
+                    range_tuples[i][1],
+                    range_tuples[i][2]
+                ),
+                isnothing(z) ? 0.0 : z[n_range[i]])
         end
 
         @info "Rendering Blobs"
-        # render the blobs in parallel
-        Threads.@threads for i in n_range
-            gen_blob!(blobs[i - n_start + 1], x[i], y[i], σ_x[i], σ_y[i], normalization, zoom)
+        @time begin
+            # render the blobs in parallel
+            Threads.@threads for i in n_range
+                gen_blob!(blobs[i-n_start+1], x[i], y[i], σ_x[i], σ_y[i], normalization, zoom)
+            end
         end
 
         # combine the rois into a single image
         @info "Combining rois"
-       
+
         if isnothing(z)
             add_blobs!(final_image, blobs)
         else
@@ -154,21 +172,51 @@ function render_blobs(
         final_image = get(cmap, final_image)
     else
         display(typeof(final_image))
-        r = sum([cmap[i].r .* final_image.parent[:,:,i] for i in 1:length(cmap)])
-        g = sum([cmap[i].g .* final_image.parent[:,:,i] for i in 1:length(cmap)])
-        b = sum([cmap[i].b .* final_image.parent[:,:,i] for i in 1:length(cmap)])
 
-        quantile_clamp!(r, percentile_cutoff)
-        quantile_clamp!(g, percentile_cutoff)
-        quantile_clamp!(b, percentile_cutoff)
+        r = [cmap[i].r .* final_image.parent[:, :, i] for i in 1:length(cmap)]
+        g = [cmap[i].g .* final_image.parent[:, :, i] for i in 1:length(cmap)]
+        b = [cmap[i].b .* final_image.parent[:, :, i] for i in 1:length(cmap)]
 
+        r = cat(r..., dims=3)
+        g = cat(g..., dims=3)
+        b = cat(b..., dims=3)
+
+        display(length(r))
         display(typeof(r))
+        imshow(RGB.(r, g, b))
+
+        r = sum([cmap[i].r .* final_image.parent[:, :, i] for i in 1:length(cmap)])
+        g = sum([cmap[i].g .* final_image.parent[:, :, i] for i in 1:length(cmap)])
+        b = sum([cmap[i].b .* final_image.parent[:, :, i] for i in 1:length(cmap)])
+
+
+
+        # find quantile cutoff over all colors
+
+        # Compute the max_val based on the non-zero quantiles
+        max_val = if any(r .> 0) || any(g .> 0) || any(b .> 0)
+            max(
+                any(r .> 0) ? quantile(r[r.>0], percentile_cutoff) : 0,
+                any(g .> 0) ? quantile(g[g.>0], percentile_cutoff) : 0,
+                any(b .> 0) ? quantile(b[b.>0], percentile_cutoff) : 0
+            )
+        else
+            1.0  # Avoid division by zero
+        end
+
+        @info "Max val: $max_val"
+        r ./= max_val
+        g ./= max_val
+        b ./= max_val
+
+        clamp!(r, 0, 1)
+        clamp!(g, 0, 1)
+        clamp!(b, 0, 1)
 
         final_image = RGB{Float32}.(r, g, b)
 
-        return final_image, (cmap, z_range)
     end
-    
+
 
     return final_image, (cmap, z_range)
 end
@@ -188,9 +236,12 @@ function render_blobs(smld::SMLMData.SMLD2D;
     zoom::Int=1
 )
 
+    x_range = (1, smld.datasize[2])
+    y_range = (1, smld.datasize[1])
+
     return render_blobs(
-        (1, smld.datasize[2]),
-        (1, smld.datasize[1]),
+        x_range,
+        y_range,
         smld.x,
         smld.y,
         smld.σ_x,
@@ -220,9 +271,12 @@ function render_blobs(smld::SMLMData.SMLD3D;
     zoom::Int=1
 )
 
+    x_range = (1, smld.datasize[2])
+    y_range = (1, smld.datasize[1])
+
     return render_blobs(
-        (1, smld.datasize[2]),
-        (1, smld.datasize[1]),
+        x_range,
+        y_range,
         smld.x,
         smld.y,
         smld.σ_x,
@@ -231,7 +285,7 @@ function render_blobs(smld::SMLMData.SMLD3D;
         n_sigmas=n_sigmas,
         colormap=colormap,
         z=smld.z,
-        z_range=(minimum(smld.z), maximum(smld.z)),
+        z_range=z_range,
         zoom
     )
 

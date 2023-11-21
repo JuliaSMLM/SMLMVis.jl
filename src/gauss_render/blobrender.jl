@@ -173,10 +173,16 @@ function combine_rois(rois::Vector{<:OffsetArray{Float32,2}},
 end
 
 function gen_blob!(blob::Blob, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol, zoom::Int=1)
+    # Precompute constants
+    inv_2σx2 = 1 / (2 * (zoom * σ_x)^2)
+    inv_2σy2 = 1 / (2 * (zoom * σ_y)^2)
+    x_zoom = x * zoom
+    y_zoom = y * zoom
 
-    for i in CartesianIndices(blob.roi)
-        y_i, x_i = i[1], i[2]
-        blob.roi[i] = exp(-((x_i - x * zoom)^2 / (2 * (zoom * σ_x)^2) + (y_i - y * zoom)^2 / (2 * (zoom * σ_y)^2)))
+    # In-place computation of gaussian values
+    @inbounds for i in CartesianIndices(blob.roi)
+        y_i, x_i = Tuple(i)
+        blob.roi[i] = exp(-((x_i - x_zoom)^2 * inv_2σx2 + (y_i - y_zoom)^2 * inv_2σy2))
     end
 
     # Normalize the gaussian
@@ -187,6 +193,23 @@ function gen_blob!(blob::Blob, x::Real, y::Real, σ_x::Real, σ_y::Real, normali
     end
     return nothing
 end
+
+
+# function gen_blob!(blob::Blob, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol, zoom::Int=1)
+
+#     for i in CartesianIndices(blob.roi)
+#         y_i, x_i = i[1], i[2]
+#         blob.roi[i] = exp(-((x_i - x * zoom)^2 / (2 * (zoom * σ_x)^2) + (y_i - y * zoom)^2 / (2 * (zoom * σ_y)^2)))
+#     end
+
+#     # Normalize the gaussian
+#     if normalization == :integral
+#         blob.roi ./= sum(blob.roi)
+#     elseif normalization == :maximum
+#         blob.roi ./= maximum(blob.roi)
+#     end
+#     return nothing
+# end
 
 
 function add_blob!(im::AbstractArray{<:Real}, roi::OffsetArray{Float32,2})
