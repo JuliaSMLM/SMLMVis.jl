@@ -1,37 +1,4 @@
 
-"""
-    blob!(roi::OffsetArray, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol)
-
-Populate the `roi` array with a 2D Gaussian blob centered at `(x, y)` with standard deviations `σ_x` and `σ_y`.
-
-# Arguments
-- `roi::OffsetArray{Float32,2}`: The 2D array to populate with the Gaussian blob.
-- `x::Real`: The x-coordinate of the center of the Gaussian blob.
-- `y::Real`: The y-coordinate of the center of the Gaussian blob.
-- `σ_x::Real`: The standard deviation of the Gaussian blob in the x-direction.
-- `σ_y::Real`: The standard deviation of the Gaussian blob in the y-direction.
-- `normalization::Symbol`: The type of normalization to apply to the Gaussian blob. Valid options are `:integral` (normalize the blob so that its integral is 1) and `:maximum` (normalize the blob so that its maximum value is 1).
-- `zoom::Int`: The zoom factor to apply to the Gaussian blob.
-
-# Returns
-`nothing`
-"""
-function blob!(roi::OffsetArray{Float32,2}, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol, zoom::Int=1)
-
-    for i in CartesianIndices(roi)
-        y_i, x_i = i[1], i[2]
-        roi[i] = exp(-((x_i - x * zoom)^2 / (2 * (zoom * σ_x)^2) + (y_i - y * zoom)^2 / (2 * (zoom * σ_y)^2)))
-    end
-
-    # Normalize the gaussian
-    if normalization == :integral
-        roi = roi ./ sum(roi)
-    elseif normalization == :maximum
-        roi = roi ./ maximum(roi)
-    end
-    return nothing
-end
-
 
 """
     calc_range(x::Real, y::Real, box_size::Int, x_range::Tuple{Int,Int}, y_range::Tuple{Int,Int})
@@ -68,54 +35,6 @@ function calc_range(x::Real, y::Real, box_size::Int,
     return y_range_roi, x_range_roi
 end
 
-function update_final_image!(final_image::RGBArray{Float32}, rois::Vector{OffsetArray{Float32,2}})
-    for roi in rois
-        for idx::CartesianIndex{2} in CartesianIndices(roi)
-            final_image.r[idx] += roi[idx]
-            final_image.g[idx] += roi[idx]
-            final_image.b[idx] += roi[idx]
-        end
-    end
-end
-
-# function update_final_image_with_cmap!(
-#     final_image::OffsetArray{RGB{Float32},2},
-#     rois::Vector{OffsetArray{Float32,2}},
-#     cmap::ColorScheme,
-#     z::Vector{<:Real},
-#     z_range::Tuple{<:Real,<:Real}
-# )
-
-#     for i in 1:length(rois)
-#         # Calculate color based on z[i]
-#         z_min, z_max = z_range
-#         color = get(cmap, (z[i] - z_min) / (z_max - z_min))
-#         # Update final_image based on rois[i]
-#         for idx::CartesianIndex{2} in CartesianIndices(rois[i])
-#             final_image[idx] += rois[i][idx] * color
-#         end
-#     end
-# end
-
-function writecolor!(a::Matrix{Float32}, a_offsets,
-    roi::OffsetMatrix{Float32,Matrix{Float32}},
-    val::Float32)
-
-    box_size = size(roi, 1)
-
-    y_offset, x_offset = roi.offsets
-
-    for i in 1:box_size, j in 1:box_size
-        # Calculate the actual indices in 'a' where the data should be written.
-        actual_i = i + y_offset - a_offsets[1]
-        actual_j = j + x_offset - a_offsets[2]
-
-        # Check boundary conditions before writing into 'a'
-        if 1 <= actual_i <= size(a, 1) && 1 <= actual_j <= size(a, 2)
-            a[actual_i, actual_j] += roi.parent[i, j] * val
-        end
-    end
-end
 
 
 function update_final_image_with_cmap!(
@@ -166,11 +85,12 @@ function combine_rois!(final_image::RGBArray{Float32},
 end
 
 
-function quantile_clamp!(colorim::RGBArray{Float32}, percentile_cutoff::Real)
+function quantile_clamp!(colorim::AbstractArray{RGB{<:Real}}, percentile_cutoff::Real)
+    
     # Extract the color channels
-    r = colorim.r
-    g = colorim.g
-    b = colorim.b
+    r = [color.r for color in colorim]
+    g = [color.g for color in colorim]
+    b = [color.b for color in colorim]
 
     # Compute the max_val based on the non-zero quantiles
     max_val = if any(r .> 0) || any(g .> 0) || any(b .> 0)
@@ -184,15 +104,27 @@ function quantile_clamp!(colorim::RGBArray{Float32}, percentile_cutoff::Real)
     end
 
     # Normalize the channels
-    colorim.r ./= max_val
-    colorim.g ./= max_val
-    colorim.b ./= max_val
+    r ./= max_val
+    g ./= max_val
+    b ./= max_val
 
     # Clamp the values
-    clamp!(colorim.r, 0, 1)
-    clamp!(colorim.g, 0, 1)
-    clamp!(colorim.b, 0, 1)
+    clamp!(r, 0, 1)
+    clamp!(g, 0, 1)
+    clamp!(b, 0, 1)
 
+    # Write the values back to the colorim
+    for i in 1:length(colorim)
+        colorim[i] = RGB{Float64}(r[i], g[i], b[i])
+    end
+
+    return nothing
+end
+
+function quantile_clamp!(im::AbstractArray{<:Real}, percentile_cutoff::Real)
+    max_val = quantile(im[im.>0], percentile_cutoff)
+    im ./= max_val
+    clamp!(im, 0, 1)
     return nothing
 end
 
@@ -240,6 +172,51 @@ function combine_rois(rois::Vector{<:OffsetArray{Float32,2}},
     return final_image
 end
 
+function gen_blob!(blob::Blob, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol, zoom::Int=1)
+
+    for i in CartesianIndices(blob.roi)
+        y_i, x_i = i[1], i[2]
+        blob.roi[i] = exp(-((x_i - x * zoom)^2 / (2 * (zoom * σ_x)^2) + (y_i - y * zoom)^2 / (2 * (zoom * σ_y)^2)))
+    end
+
+    # Normalize the gaussian
+    if normalization == :integral
+        blob.roi ./= sum(blob.roi)
+    elseif normalization == :maximum
+        blob.roi ./= maximum(blob.roi)
+    end
+    return nothing
+end
+
+
+function add_blob!(im::AbstractArray{<:Real}, roi::OffsetArray{Float32,2})
+    for idx::CartesianIndex{2} in CartesianIndices(roi)
+        im[idx] += roi[idx]
+    end
+    return nothing
+end
+
+function add_blobs!(im::OffsetArray{Float32,2}, blobs::Vector{Blob})
+    for blob in blobs
+        add_blob!(im, blob.roi)
+    end
+    return nothing
+end
+
+function add_blobs!(im::OffsetArray{Float32,3}, blobs::Vector{Blob},
+    cmap::ColorScheme, z_range::Tuple{Real,Real})
+
+    for blob in blobs
+        z_idx = Int(floor((blob.z - z_range[1]) / (z_range[2] - z_range[1]) * length(cmap.colors))) + 1
+        # handle out of range z values by removal
+        if z_idx < 1 || z_idx > length(cmap.colors)
+            continue
+        end
+        
+        add_blob!(view(im, :, :, z_idx), blob.roi)
+    end
+    return nothing
+end
 
 
 

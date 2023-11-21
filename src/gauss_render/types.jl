@@ -24,3 +24,10 @@ function RGBArray{T}(sz::Tuple, ranges::Tuple) where T<:Real
         OffsetArray(zeros(T, sz...), ranges...)
     )
 end
+
+
+struct Blob
+    roi::OffsetArray{Float32,2}
+    z::Float32
+end
+

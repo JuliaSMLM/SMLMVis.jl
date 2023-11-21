@@ -56,25 +56,37 @@ function render_blobs(
     x_range = x_range .*zoom
     y_range = y_range .* zoom
 
-    # Create a larger array to act as our final image
-    # final_image = OffsetArray(zeros(RGB{Float32},
-    #         y_range[2] - y_range[1] + 1,
-    #         x_range[2] - x_range[1] + 1),
-    #     y_range[1]:y_range[2],
-    #     x_range[1]:x_range[2])
-
-    final_image = RGBArray{Float32}((
-        y_range[2] - y_range[1] + 1,
-        x_range[2] - x_range[1] + 1),
-    (y_range[1]:y_range[2],
-    x_range[1]:x_range[2]))
-
+    # Make colormap
     if isnothing(z) && isnothing(colormap)
         cmap = ColorSchemes.hot
     elseif !isnothing(z) && isnothing(colormap)
         cmap = ColorSchemes.rainbow_bgyr_35_85_c72_n256
     else
         cmap = getfield(ColorSchemes, colormap)
+    end
+
+    # Create an OffsetArray array to act as our final image
+    if isnothing(z) # 2D image
+        final_image = OffsetArray(zeros(Float32,
+                y_range[2] - y_range[1] + 1,
+                x_range[2] - x_range[1] + 1),
+            y_range[1]:y_range[2],
+            x_range[1]:x_range[2])
+    else # 3D image of length of colormap
+        final_image = OffsetArray(zeros(Float32,
+                y_range[2] - y_range[1] + 1,
+                x_range[2] - x_range[1] + 1,
+                length(cmap.colors)),
+            y_range[1]:y_range[2],
+            x_range[1]:x_range[2],
+            1:length(cmap.colors))
+    end
+    
+    if ~isnothing(z)
+        if isnothing(z_range)
+            z_range = (minimum(z), maximum(z))
+        end
+        z = (z .- z_range[1]) ./ (z_range[2] - z_range[1])
     end
 
     n_blobs = length(x)
@@ -109,40 +121,55 @@ function render_blobs(
         range_tuples = calc_range.(x[n_range], y[n_range], box_size, Ref(x_range), Ref(y_range), zoom)
 
         # generate an empty stack of OffsetArrays
-        rois = Vector{OffsetArray{Float32,2}}(undef, n_blobs_section)
+        blobs = Vector{Blob}(undef, n_blobs_section)
         for i in 1:n_blobs_section
-            rois[i] = OffsetArray(zeros(Float32, box_size, box_size),
+            blobs[i] = Blob(OffsetArray(zeros(Float32, box_size, box_size),
                 range_tuples[i][1],
                 range_tuples[i][2]
-            )
+            ),
+            isnothing(z) ? 0.0 : z[n_range[i]])
         end
 
         @info "Rendering Blobs"
-        # render the blobs
-        for i in n_range
-            blob!(rois[i - n_start + 1], x[i], y[i], σ_x[i], σ_y[i], normalization, zoom)
+        # render the blobs in parallel
+        Threads.@threads for i in n_range
+            gen_blob!(blobs[i - n_start + 1], x[i], y[i], σ_x[i], σ_y[i], normalization, zoom)
         end
 
         # combine the rois into a single image
         @info "Combining rois"
-        # println("z_range: ", z_range)
-        # println(n_range)
-        # println(z)
-        # println(z[n_range])
-
+       
         if isnothing(z)
-            combine_rois!(final_image, rois, cmap;
-                z = nothing, z_range = nothing)
+            add_blobs!(final_image, blobs)
         else
-            combine_rois!(final_image, rois, cmap;
-            z = z[n_range], z_range)
+            add_blobs!(final_image, blobs, cmap, z_range)
         end
 
     end
 
-    quantile_clamp!(final_image, percentile_cutoff)
 
-    final_image = RGB.(final_image.r,final_image.g, final_image.b)
+    # apply the colormap
+    if isnothing(z)
+        quantile_clamp!(final_image, percentile_cutoff)
+        final_image = get(cmap, final_image)
+    else
+        display(typeof(final_image))
+        r = sum([cmap[i].r .* final_image.parent[:,:,i] for i in 1:length(cmap)])
+        g = sum([cmap[i].g .* final_image.parent[:,:,i] for i in 1:length(cmap)])
+        b = sum([cmap[i].b .* final_image.parent[:,:,i] for i in 1:length(cmap)])
+
+        quantile_clamp!(r, percentile_cutoff)
+        quantile_clamp!(g, percentile_cutoff)
+        quantile_clamp!(b, percentile_cutoff)
+
+        display(typeof(r))
+
+        final_image = RGB{Float32}.(r, g, b)
+
+        return final_image, (cmap, z_range)
+    end
+    
+
     return final_image, (cmap, z_range)
 end
 

@@ -3,7 +3,7 @@ using SMLMVis
 using FileIO
 using SMLMData
 using Images
-using CairoMakie
+# using CairoMakie
 
 pathname  = "C:\\Data"
 filename = "Data2-2023-9-19-22-25-4deepfit1.jld2"
