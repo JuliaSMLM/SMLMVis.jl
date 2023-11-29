@@ -2,7 +2,7 @@ using Revise
 using SMLMVis
 using Images
 using ColorSchemes
-using OffsetArrays
+# using OffsetArrays
 
 sz = 64
 

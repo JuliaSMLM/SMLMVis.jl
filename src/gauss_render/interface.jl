@@ -37,6 +37,7 @@ Render a stack of 2D Gaussian blobs as a single image.
 # Returns
 - `final_image, (cmap, z_range)`: The rendered image as a 2D array of RGB values, colormap and z_range used for rendering. 
 """
+
 function render_blobs(
     x_range::Tuple{Int,Int},
     y_range::Tuple{Int,Int},
@@ -52,174 +53,77 @@ function render_blobs(
     zoom::Int=1,
     percentile_cutoff::Real=0.99
 )
-
-    # pixels mean center of pixel, so 1 to 256 means 0.5 to 256.5
-
+    # Adjust the range for zoom
     if zoom > 1
         if zoom % 2 == 0
-            x_range = Int.((x_range[1]-0.5, x_range[2]+.5) .* zoom)
-            y_range = Int.((y_range[1]-0.5, y_range[2]+.5) .* zoom)
+            x_range = Int.((x_range[1] - 0.5, x_range[2] + 0.5) .* zoom)
+            y_range = Int.((y_range[1] - 0.5, y_range[2] + 0.5) .* zoom)
         else
             @error "Zoom must be an even number"
         end
     end
 
-
+    println("x_range: $x_range, y_range: $y_range")
+    
     # Make colormap
-    if isnothing(z) && isnothing(colormap)
-        cmap = ColorSchemes.hot
-    elseif !isnothing(z) && isnothing(colormap)
-        cmap = ColorSchemes.rainbow_bgyr_35_85_c72_n256
-    else
-        cmap = getfield(ColorSchemes, colormap)
-    end
+    cmap = create_colormap(z, colormap)
 
-    # Create an OffsetArray array to act as our final image
+    # Determine whether we are creating a 2D or 3D image and initialize accordingly
     if isnothing(z) # 2D image
-        final_image = OffsetArray(zeros(Float32,
-                y_range[2] - y_range[1] + 1,
-                x_range[2] - x_range[1] + 1),
-            y_range[1]:y_range[2],
-            x_range[1]:x_range[2])
-    else # 3D image of length of colormap
-        final_image = OffsetArray(zeros(Float32,
-                y_range[2] - y_range[1] + 1,
-                x_range[2] - x_range[1] + 1,
-                length(cmap.colors)),
-            y_range[1]:y_range[2],
-            x_range[1]:x_range[2],
-            1:length(cmap.colors))
-    end
+        gray_image = initialize_gray_image(x_range, y_range)  # Returns ImagePatch2D
+    else # 3D image
+        gray_image = initialize_gray_image(x_range, y_range, length(cmap.colors))  # Returns ImagePatch3D
 
-    if ~isnothing(z)
+        # Set z_range if not provided
         if isnothing(z_range)
             z_range = (minimum(z), maximum(z))
         end
     end
 
+
     @info "x_range: $x_range, y_range: $y_range, z_range: $z_range"
 
     n_blobs = length(x)
 
-    # calculate the size of the roi
+    # Calculate the size of the roi
     max_sigma = max(maximum(σ_x), maximum(σ_y))
     min_sigma = min(minimum(σ_x), minimum(σ_y))
     box_size = Int(ceil(2 * n_sigmas * max_sigma * zoom))
 
     @info "Max sigma: $max_sigma, Min sigma: $min_sigma, Box size: $box_size"
-    println(box_size)
 
     FOUR_GB = 4 * 1024 * 1024 * 1024
-
-    # Total memory size for the 3D array
-    total_size = box_size * box_size * n_blobs * sizeof(Float32)
-
-    # Number of sections required to fit the 3D array into 8 GB sections
+    total_size = box_size * box_size * n_blobs * sizeof(Float64)
     num_sections = ceil(Int, total_size / FOUR_GB)
-
-    # Size of each section along the third dimension
     section_size = floor(Int, n_blobs / num_sections)
 
     nthreads = Threads.nthreads()
     @info "Rendering $n_blobs blobs in $num_sections sections of size $section_size"
-    @info "using $box_size x $box_size rois and $nthreads() threads"
+    @info "using $box_size x $box_size rois and $nthreads threads"
 
     for n in 1:num_sections
-
-        # calculate range of roi indexes to calculate
-
         n_start = (n - 1) * section_size + 1
         n_end = min(n_start + section_size - 1, n_blobs)
         n_blobs_section = n_end - n_start + 1
         n_range = n_start:n_end
 
-        # calculate the range of the rois in final image
-        range_tuples = calc_range.(x[n_range], y[n_range], box_size, Ref(x_range), Ref(y_range), zoom)
+        blobs = generate_image_patches(n_blobs_section, x_range, y_range, x, y, z, n_range, box_size, zoom)
 
-        # generate an empty stack of OffsetArrays
-        blobs = Vector{Blob}(undef, n_blobs_section)
-        for i in 1:n_blobs_section
-            blobs[i] = Blob(OffsetArray(zeros(Float32, box_size, box_size),
-                    range_tuples[i][1],
-                    range_tuples[i][2]
-                ),
-                isnothing(z) ? 0.0 : z[n_range[i]])
-        end
+        render_image_patches!(blobs, x, y, σ_x, σ_y, normalization, zoom, n_range, n_start)
 
-        @info "Rendering Blobs"
-        @time begin
-            # render the blobs in parallel
-            Threads.@threads for i in n_range
-                gen_blob!(blobs[i-n_start+1], x[i], y[i], σ_x[i], σ_y[i], normalization, zoom)
-            end
-        end
-
-        # combine the rois into a single image
-        @info "Combining rois"
-
-        if isnothing(z)
-            add_blobs!(final_image, blobs)
-        else
-            add_blobs!(final_image, blobs, cmap, z_range)
-        end
-
+        combine_image_patches!(gray_image, blobs, z, cmap, z_range)
     end
 
-
-    # apply the colormap
-    if isnothing(z)
-        quantile_clamp!(final_image, percentile_cutoff)
-        final_image = get(cmap, final_image)
-    else
-        display(typeof(final_image))
-
-        r = [cmap[i].r .* final_image.parent[:, :, i] for i in 1:length(cmap)]
-        g = [cmap[i].g .* final_image.parent[:, :, i] for i in 1:length(cmap)]
-        b = [cmap[i].b .* final_image.parent[:, :, i] for i in 1:length(cmap)]
-
-        r = cat(r..., dims=3)
-        g = cat(g..., dims=3)
-        b = cat(b..., dims=3)
-
-        display(length(r))
-        display(typeof(r))
-        imshow(RGB.(r, g, b))
-
-        r = sum([cmap[i].r .* final_image.parent[:, :, i] for i in 1:length(cmap)])
-        g = sum([cmap[i].g .* final_image.parent[:, :, i] for i in 1:length(cmap)])
-        b = sum([cmap[i].b .* final_image.parent[:, :, i] for i in 1:length(cmap)])
-
-
-
-        # find quantile cutoff over all colors
-
-        # Compute the max_val based on the non-zero quantiles
-        max_val = if any(r .> 0) || any(g .> 0) || any(b .> 0)
-            max(
-                any(r .> 0) ? quantile(r[r.>0], percentile_cutoff) : 0,
-                any(g .> 0) ? quantile(g[g.>0], percentile_cutoff) : 0,
-                any(b .> 0) ? quantile(b[b.>0], percentile_cutoff) : 0
-            )
-        else
-            1.0  # Avoid division by zero
-        end
-
-        @info "Max val: $max_val"
-        r ./= max_val
-        g ./= max_val
-        b ./= max_val
-
-        clamp!(r, 0, 1)
-        clamp!(g, 0, 1)
-        clamp!(b, 0, 1)
-
-        final_image = RGB{Float32}.(r, g, b)
-
-    end
-
+    println(sum(final_image.roi))
+    final_image = apply_colormap_to_image(gray_image, z, cmap, percentile_cutoff)
 
     return final_image, (cmap, z_range)
 end
+
+
+
+
+
 
 """
     render_blobs(smld::SMLMData.SMLD2D; 
