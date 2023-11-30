@@ -9,4 +9,5 @@ dev/Manifest.toml
 *.png
 *.pdf
 docs/Manifest.toml
-.vscode/*.vscode/*
+.vscode/*
+
