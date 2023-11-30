@@ -21,6 +21,8 @@ export render_blobs
 
 include("types.jl")
 include("blobrender.jl")
+include("color.jl") 
+include("helpers.jl")
 include("interface.jl")
 
 end
