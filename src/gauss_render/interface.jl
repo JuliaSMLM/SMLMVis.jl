@@ -31,13 +31,12 @@ Render a stack of 2D Gaussian blobs as a single image.
 - `colormap::Union{Nothing,Symbol}=nothing`: The name of the colormap to use for colorizing the image. Valid options are `:viridis`, `:plasma`, `:inferno`, `:magma`, `:cividis`, `:rainbow_bgyr_35_85_c72_n256`, `:hot`, `:cool`, `:spring`, `:summer`, `:autumn`, `:winter`, `:bone`, `:copper`, `:pink`, `:gray`, `:binary`, `:gist_earth`, `:terrain`, `:ocean`, `:jet`, `:nipy_spectral`, `:gist_ncar`, `:gist_rainbow`, `:hsv`, `:flag`, `:prism`, `:flag_r`, `:prism_r`, `:rainbow`, `:rainbow_r`, `:seismic`, `:seismic_r`, `:brg`, `:brg_r`, `:bwr`, `:bwr_r`, `:coolwarm`, `:coolwarm_r`, `:PiYG`, `:PiYG_r`, `:PRGn`, `:PRGn_r`, `:PuOr`, `:PuOr_r`, `:RdBu`, `:RdBu_r`, `:RdGy`, `:RdGy_r`, `:RdYlBu`, `:RdYlBu_r`, `:RdYlGn`, `:RdYlGn_r`, `:Spectral`, `:Spectral_r`, `:PuBu`, `:PuBu_r`, `:BuPu`, `:BuPu_r`, `:YlGn`, `:YlGn_r`, `:YlGnBu`, `:YlGnBu_r`, `:GnBu`, `:GnBu_r`, `:PuRd`, `:PuRd_r`, `:OrRd`, `:OrRd_r`, `:YlOrBr`, `:YlOrBr_r`, `:YlOrRd`, `:YlOrRd_r`, `:Reds`, `:Reds_r`, `:Greens`, `:Greens_r`, `:Blues`, `:Blues_r`, `:Purples`, `:Purples_r`, `:Oranges`, `:Oranges_r`, `:Greys`, `:Greys_r`, `:Pastel1`, `:Pastel1_r`, `:Pastel2`, `:Pastel2_r`, `:Set1`, `:Set1_r`, `:Set2`, `:Set2_r`, `:Set3`, `:Set3_r`, `:tab10`, `:tab10_r`, `:tab20`, `:tab20_r`, `:tab20b`, `:tab20b_r`, `:tab20c`, `:tab20c_r`.
 - `z::Union{Nothing,Vector{<:Real}}=nothing`: A vector of values to use for colorizing the image. If `nothing`, the image will be colorized based on intensity.
 - `z_range::Union{Nothing,Tuple{Real,Real}}=nothing`: The range of values to use for colorizing the image. If `nothing`, the range will be determined automatically from the values in `z`.
-- `zoom::Int=1`: The zoom factor to apply to the image.
+- `zoom::Int=1`: The zoom factor to apply to the image. Must be an even integer
 - `percentile_cutoff::Real=0.99`: The percentile cutoff for intensity scaling.
 
 # Returns
-- `final_image, (cmap, z_range)`: The rendered image as a 2D array of RGB values, colormap and z_range used for rendering. 
+- `final_image, cmap, z_range`: The rendered image as a 2D array of RGB values, colormap and z_range used for rendering. 
 """
-
 function render_blobs(
     x_range::Tuple{Int,Int},
     y_range::Tuple{Int,Int},
@@ -63,8 +62,6 @@ function render_blobs(
         end
     end
 
-    println("x_range: $x_range, y_range: $y_range")
-    
     # Make colormap
     cmap = create_colormap(z, colormap)
 
@@ -80,9 +77,6 @@ function render_blobs(
         end
     end
 
-
-    @info "x_range: $x_range, y_range: $y_range, z_range: $z_range"
-
     n_blobs = length(x)
 
     # Calculate the size of the roi
@@ -90,7 +84,6 @@ function render_blobs(
     min_sigma = min(minimum(σ_x), minimum(σ_y))
     box_size = Int(ceil(2 * n_sigmas * max_sigma * zoom))
 
-    @info "Max sigma: $max_sigma, Min sigma: $min_sigma, Box size: $box_size"
 
     FOUR_GB = 4 * 1024 * 1024 * 1024
     total_size = box_size * box_size * n_blobs * sizeof(Float64)
@@ -99,7 +92,7 @@ function render_blobs(
 
     nthreads = Threads.nthreads()
     @info "Rendering $n_blobs blobs in $num_sections sections of size $section_size"
-    @info "using $box_size x $box_size rois and $nthreads threads"
+    @info "Using $box_size x $box_size rois and $nthreads threads"
 
     for n in 1:num_sections
         n_start = (n - 1) * section_size + 1
@@ -114,10 +107,13 @@ function render_blobs(
         combine_image_patches!(gray_image, blobs, z, cmap, z_range)
     end
 
-    println(sum(final_image.roi))
-    final_image = apply_colormap_to_image(gray_image, z, cmap, percentile_cutoff)
+    @info "Applying colormap"
 
-    return final_image, (cmap, z_range)
+    final_image = apply_colormap_to_image(gray_image, cmap, percentile_cutoff)
+
+    @info "Done!"
+
+    return final_image, cmap, z_range
 end
 
 
@@ -137,7 +133,8 @@ function render_blobs(smld::SMLMData.SMLD2D;
     normalization::Symbol=:integral,
     n_sigmas::Real=3,
     colormap::Symbol=:hot,
-    zoom::Int=1
+    zoom::Int=1,
+    percentile_cutoff::Real=0.99
 )
 
     x_range = (1, smld.datasize[2])
@@ -153,7 +150,8 @@ function render_blobs(smld::SMLMData.SMLD2D;
         normalization=normalization,
         n_sigmas=n_sigmas,
         colormap=colormap,
-        zoom
+        zoom,
+        percentile_cutoff
     )
 
 end
@@ -172,7 +170,8 @@ function render_blobs(smld::SMLMData.SMLD3D;
     n_sigmas::Real=3,
     colormap::Symbol=:rainbow_bgyr_35_85_c72_n256,
     z_range::Union{Nothing,Tuple{Real,Real}}=nothing,
-    zoom::Int=1
+    zoom::Int=1,
+    percentile_cutoff::Real=0.99
 )
 
     x_range = (1, smld.datasize[2])
@@ -190,7 +189,8 @@ function render_blobs(smld::SMLMData.SMLD3D;
         colormap=colormap,
         z=smld.z,
         z_range=z_range,
-        zoom
+        zoom,
+        percentile_cutoff
     )
 
 end

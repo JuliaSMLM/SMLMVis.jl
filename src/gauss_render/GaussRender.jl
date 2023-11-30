@@ -16,7 +16,7 @@ using OffsetArrays
 using ColorSchemes
 using SMLMData
 using Statistics 
-using ImageView
+
 export render_blobs
 
 include("types.jl")
