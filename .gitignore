@@ -3,7 +3,11 @@
 *.jl.mem
 /Manifest.toml
 /docs/build/
-*.png
-.vscode/*
+dev/Manifest.toml
 *.h5
 *.mp4
+*.png
+*.pdf
+docs/Manifest.toml
+.vscode/*
+

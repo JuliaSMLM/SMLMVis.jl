@@ -24,3 +24,22 @@ function RGBArray{T}(sz::Tuple, ranges::Tuple) where T<:Real
         OffsetArray(zeros(T, sz...), ranges...)
     )
 end
+
+# Modified Blob struct with manual offset fields
+abstract type ImagePatch end 
+
+struct ImagePatch2D{T<:Real} <: ImagePatch
+    roi :: Array{T, 2}
+    offset_x :: Int
+    offset_y :: Int
+    z :: T
+end
+
+struct ImagePatch3D{T<:Real} <: ImagePatch
+    roi :: Array{T, 3}
+    offset_x :: Int
+    offset_y :: Int
+    z :: T
+end
+
+
