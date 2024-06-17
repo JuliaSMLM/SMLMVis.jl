@@ -1,12 +1,10 @@
 """Documentation for the `gauss_render.blobrender` module."""
 """
-    quantile_clamp!(im, percentile_cutoff)
+# quantile_clamp!(im, percentile_cutoff)
 
 # Description   
+    A function to clamp the intensity values of an image based on the specified percentile cutoff.  
     
-    a function to clamp the intensity values of an image based on the specified percentile cutoff.  
-    
-
 # Arguments 
 - `im::AbstractArray{<:Real}` : The input image, a 2D array of real numbers.
 - `percentile_cutoff::Real`   : The percentile cutoff for intensity clamping.
@@ -22,6 +20,7 @@ function quantile_clamp!(im::AbstractArray{<:Real}, percentile_cutoff::Real)
     return nothing
 end
 
+# generate a 2D Gaussian blob
 """
     gen_blob!(patch, x, y, σ_x, σ_y:, normalization; zoom=1)
 
@@ -54,7 +53,7 @@ function gen_blob!(patch::ImagePatch2D, x::Real, y::Real, σ_x::Real, σ_y::Real
     x_zoom = x * zoom
     y_zoom = y * zoom
     # Generate the blob using the 2D Gaussian function
-    for i in CartesianIndices(patch.roi)  # CartesianIndices iterates over the indices of the array. Useful for 2D and 3D abstract arrays.
+    for i in CartesianIndices(patch.roi)  
         y_i, x_i = Tuple(i)
         adjusted_x_i = x_i + patch.offset_x
         adjusted_y_i = y_i + patch.offset_y
@@ -68,12 +67,42 @@ function gen_blob!(patch::ImagePatch2D, x::Real, y::Real, σ_x::Real, σ_y::Real
     end
 end
 
+# Add a blob to an image patch
 """
-    add_blobs!(image, patches)
+    add_blob!(image, patch, offset_x, offset_y)
 
 # Description
     
-        Adds multiple blobs to an image patch.
+        Adds a single blob to an image patch at the specified offset.
+
+# Arguments
+    - `image::AbstractArray{<:Real}` : The image patch to which the blob will be added.
+    - `patch::ImagePatch2D`          : The blob to be added to the image.
+    - `offset_x::Int`                : The x-offset for the blob.
+    - `offset_y::Int`                : The y-offset for the blob.
+
+# Returns
+    
+        - The image patch with the added blob.
+        
+"""
+function add_blob!(image::AbstractArray{<:Real}, patch::ImagePatch2D, offset_x::Int, offset_y::Int)
+    for idx in CartesianIndices(patch.roi)
+        global_idx = idx + CartesianIndex(patch.offset_y, patch.offset_x) - CartesianIndex(offset_y, offset_x)
+        global_y, global_x = Tuple(global_idx)
+        image[global_y, global_x] += patch.roi[idx]
+    end
+end
+   
+# another method for the add_blob! function
+
+function add_blob!(image::ImagePatch2D, patch::ImagePatch2D)
+    add_blob!(image.roi, patch, image.offset_x, image.offset_y)
+end
+
+# Add multiple blobs to an image patch
+"""
+    add_blobs!(image, patches)
 
 # Arguments
     - `image::ImagePatch2D` : The image patch to which the blobs will be added.
@@ -87,17 +116,17 @@ end
 
 function add_blobs!(image::ImagePatch2D{T}, patches::Vector{ImagePatch2D{T}}) where {T<:Real}
     Threads.@threads for patch in patches
-        add_blobs!(image, patch)
+        add_blob!(image, patch)
     end
 end
 
+# another method for the add_blobs! function 
 """
-
     add_blobs!(image, patches, cmap, z_range)
 
 # Description
     
-        Adds multiple blobs to a 3D image patch with different z-values and applies a colormap to the blobs.
+    -  Adds multiple blobs to a 3D image patch with different z-values and applies a colormap to the blobs.
 
 # Arguments
     - `image::ImagePatch3D` : The 3D image patch to which the blobs will be added.
@@ -105,9 +134,8 @@ end
     - `cmap::ColorScheme` : The colormap to be applied to the blobs.
     - `z_range::Tuple{Real,Real}` : The range of z-values for the colormap.
 
-# Returns
-
-        """
+# Images added to patches are added to the image at the corresponding z-index based on the z-value of the patch.
+"""
 function add_blobs!(image::ImagePatch3D{T}, patches::Vector{ImagePatch2D{T}}, cmap::ColorScheme, z_range::Tuple{Real,Real}) where {T<:Real}
     cmap_length = length(cmap.colors)
 
@@ -127,4 +155,3 @@ function add_blobs!(image::ImagePatch3D{T}, patches::Vector{ImagePatch2D{T}}, cm
         add_blob!(layer_view, patch, image.offset_x, image.offset_y)        
     end
 end
-
