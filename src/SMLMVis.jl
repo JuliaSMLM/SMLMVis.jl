@@ -1,3 +1,14 @@
+"""
+The `SMLMVis` module is designed for visualization tasks specifically tailored for Single Molecule Localization Microscopy (SMLM). This module includes functionalities for video processing and Gaussian rendering of microscopy data.
+
+    ## Dependencies
+    To use the `SMLMVis` module, ensure that the following packages are installed and included:
+    
+    - `GLMakie`: For high-performance visualizations.
+    - `Images`: For handling image data.
+    - `VideoIO`: For video processing capabilities.
+    
+""" 
 module SMLMVis
  
 # include("visualization.jl")
