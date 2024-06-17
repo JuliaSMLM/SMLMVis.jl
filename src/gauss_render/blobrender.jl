@@ -1,18 +1,15 @@
-"""Documentation for the `gauss_render.blobrender` module."""
 """
-# quantile_clamp!(im, percentile_cutoff)
+    quantile_clamp!(im::AbstractArray{<:Real}, percentile_cutoff::Real)
 
-# Description   
-    A function to clamp the intensity values of an image based on the specified percentile cutoff.  
+Clamp the intensity values of an image based on the specified percentile cutoff.  
     
 # Arguments 
 - `im::AbstractArray{<:Real}` : The input image, a 2D array of real numbers.
 - `percentile_cutoff::Real`   : The percentile cutoff for intensity clamping.
 
-# return nothing
-
+# Returns
+- nothing
 """
-
 function quantile_clamp!(im::AbstractArray{<:Real}, percentile_cutoff::Real)
     max_val = quantile(im[im.>0], percentile_cutoff)
     im ./= max_val
@@ -20,14 +17,12 @@ function quantile_clamp!(im::AbstractArray{<:Real}, percentile_cutoff::Real)
     return nothing
 end
 
-# generate a 2D Gaussian blob
 """
-    gen_blob!(patch, x, y, σ_x, σ_y:, normalization; zoom=1)
+    gen_blob!(patch, x, y, σ_x, σ_y, normalization; zoom=1)
 
-# Description
-    
-        Generates a 2D Gaussian blob centered at (x, y) with standard deviations σ_x and σ_y.    
-        The blob is normalized either by its integral or maximum value.
+Generate a 2D Gaussian blob centered at (x, y) with standard deviations σ_x and σ_y.    
+        
+The blob is normalized either by its integral or maximum value.
         
 # Arguments
     - `patch::ImagePatch2D` : The image patch to store the generated blob.
@@ -39,11 +34,9 @@ end
     - `zoom::Int`            : The zoom factor for the blob. Default is 1.
  
 # Returns
-
     - The generated blob is stored in the `patch` argument.
 
-    """
-
+"""
 function gen_blob!(patch::ImagePatch2D, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol; zoom::Int=1)
     # Calculate the zoomed standard deviations
     zoom_σ_x = zoom * σ_x  
@@ -71,9 +64,7 @@ end
 """
     add_blob!(image, patch, offset_x, offset_y)
 
-# Description
-    
-        Adds a single blob to an image patch at the specified offset.
+Add a single blob to an image patch at the specified offset.
 
 # Arguments
     - `image::AbstractArray{<:Real}` : The image patch to which the blob will be added.
@@ -82,8 +73,7 @@ end
     - `offset_y::Int`                : The y-offset for the blob.
 
 # Returns
-    
-        - The image patch with the added blob.
+    The image patch with the added blob.
         
 """
 function add_blob!(image::AbstractArray{<:Real}, patch::ImagePatch2D, offset_x::Int, offset_y::Int)
@@ -94,39 +84,39 @@ function add_blob!(image::AbstractArray{<:Real}, patch::ImagePatch2D, offset_x::
     end
 end
    
-# another method for the add_blob! function
+"""
+    add_blob!(image, patch)
 
+# Arguments
+- `image::ImagePatch2D` : The image patch to which the blob will be added.
+- `patch::ImagePatch2D` : The blob to be added to the image.
+"""
 function add_blob!(image::ImagePatch2D, patch::ImagePatch2D)
     add_blob!(image.roi, patch, image.offset_x, image.offset_y)
 end
 
-# Add multiple blobs to an image patch
+
 """
     add_blobs!(image, patches)
+
+Add multiple blobs to an image patch. 
 
 # Arguments
     - `image::ImagePatch2D` : The image patch to which the blobs will be added.
     - `patches::Vector{ImagePatch2D}` : A vector of image patches to be added to the image.
 
 # Returns
-    
-        - The image patch with the added blobs.
+    - The image patch with the added blobs.
     
 """
-
 function add_blobs!(image::ImagePatch2D{T}, patches::Vector{ImagePatch2D{T}}) where {T<:Real}
     Threads.@threads for patch in patches
         add_blob!(image, patch)
     end
 end
 
-# another method for the add_blobs! function 
 """
     add_blobs!(image, patches, cmap, z_range)
-
-# Description
-    
-    -  Adds multiple blobs to a 3D image patch with different z-values and applies a colormap to the blobs.
 
 # Arguments
     - `image::ImagePatch3D` : The 3D image patch to which the blobs will be added.
@@ -134,7 +124,8 @@ end
     - `cmap::ColorScheme` : The colormap to be applied to the blobs.
     - `z_range::Tuple{Real,Real}` : The range of z-values for the colormap.
 
-# Images added to patches are added to the image at the corresponding z-index based on the z-value of the patch.
+# Returns
+    - Images added to patches are added to the image at the corresponding z-index based on the z-value of the patch.
 """
 function add_blobs!(image::ImagePatch3D{T}, patches::Vector{ImagePatch2D{T}}, cmap::ColorScheme, z_range::Tuple{Real,Real}) where {T<:Real}
     cmap_length = length(cmap.colors)
