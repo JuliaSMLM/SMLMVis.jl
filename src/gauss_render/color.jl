@@ -15,7 +15,6 @@ Create and return a color scheme based on specified parameters.
 cmap = create_colormap(z, :hot)
 ```
 """
-
 function create_colormap(z, colormap)
     if isnothing(z) && isnothing(colormap)
         ColorSchemes.hot
@@ -41,7 +40,6 @@ Applies a colormap to a 2D image patch after normalizing the image data based on
 apply_colormap_to_image(image_patch_2d, cmap, 0.99)
 ```
 """
-
 function apply_colormap_to_image(gray_image::ImagePatch2D, cmap, percentile_cutoff)
     quantile_clamp!(gray_image.roi, percentile_cutoff)
     get(cmap, gray_image.roi)
@@ -106,6 +104,7 @@ function apply_colormap_to_image(gray_image::ImagePatch3D, cmap::ColorScheme, pe
     clamp!(b_sum, 0, 1)
 
     final_image = RGB.(r_sum, g_sum, b_sum)
+    return final_image
     
 end
 
