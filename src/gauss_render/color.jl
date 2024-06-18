@@ -1,19 +1,17 @@
 """
     create_colormap(z, colormap)
 
-Create and return a color scheme based on specified parameters.
+Determine the best colormap to use based on the provided z and colormap parameters.
 
+If both z and colormap are nothing, the function returns the 'hot' colormap. If z is provided and 
+colormap is nothing, the function returns the 'rainbow_bgyr_35_85_c72_n256' colormap. If colormap is provided, 
+it returns the specified colormap from ColorSchemes.
 # Arguments
-- `z`: Optional. Specifies if a specific z-index is considered.
-- `colormap`: Optional. The name of the colormap to use from `ColorSchemes`.
+- `z`                : A parameter that can influence the colormap selection.
+- `colormap`         : A string representing the desired colormap from ColorSchemes.
 
 # Returns
-- Returns a `ColorScheme` object based on the input parameters. If no parameters are provided, it defaults to the `hot` color scheme.
-
-# Example
-```julia
-cmap = create_colormap(z, :hot)
-```
+- A colormap from ColorSchemes.
 """
 function create_colormap(z, colormap)
     if isnothing(z) && isnothing(colormap)
@@ -28,17 +26,16 @@ end
 """
     apply_colormap_to_image(gray_image::ImagePatch2D, cmap, percentile_cutoff)
 
-Applies a colormap to a 2D image patch after normalizing the image data based on a percentile cutoff.
+Apply a colormap to a 2D grayscale image patch after clamping its intensity values.
 
+Clamps the intensity values of the grayscale image patch based on the specified percentile cutoff, and then applies the given colormap.
 # Arguments
-- `gray_image::ImagePatch2D`: The 2D image patch to process.
-- `cmap`: The color map to apply.
-- `percentile_cutoff`: The percentile used for normalization, clamping the pixel values after scaling.
+- `gray_image::ImagePatch2D`            : The input 2D grayscale image patch.
+- `cmap`                                : The colormap to be applied.
+- `percentile_cutoff`                   : The percentile cutoff for intensity clamping.
 
-# Usage
-```julia
-apply_colormap_to_image(image_patch_2d, cmap, 0.99)
-```
+# Returns
+- An image with the colormap applied.
 """
 function apply_colormap_to_image(gray_image::ImagePatch2D, cmap, percentile_cutoff)
     quantile_clamp!(gray_image.roi, percentile_cutoff)
@@ -69,6 +66,23 @@ apply_colormap_to_image(image_patch_3d, cmap, 0.95)
 ```
 """
 
+"""
+    apply_colormap_to_image(gray_image::ImagePatch3D, cmap::ColorScheme, percentile_cutoff)
+
+Applies a colormap to a 3D grayscale image patch after clamping its intensity values.
+
+# Arguments
+- `gray_image::ImagePatch3D`            : The input 3D grayscale image patch.
+- `cmap::ColorScheme`                   : The colormap to be applied.
+- `percentile_cutoff`                   : The percentile cutoff for intensity clamping.
+
+# Returns
+- An RGB image with the colormap applied.
+
+# Description
+Clamps the intensity values of each layer in the 3D grayscale image patch based on the specified percentile cutoff, and then applies the given colormap. 
+The final RGB image is constructed by accumulating the color values from each layer.
+"""
 function apply_colormap_to_image(gray_image::ImagePatch3D, cmap::ColorScheme, percentile_cutoff)
     # Dimensions of the gray_image
     height, width, layers = size(gray_image.roi)
