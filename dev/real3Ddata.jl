@@ -11,17 +11,20 @@ using Statistics
 # filename = "Data2-2023-10-6-17-11-54deepfit1.jld2"
 
 
-pathname  = "D:\\Data"
-filename = "Cell8-2023-5-12-20-50-26deepfit1.jld2"
+pathname  = "Y:/Projects/Super Critical Angle Localization Microscopy/Data/10-06-2023/Data5/"
+filename = "data.jld2"
 
 fn = joinpath(pathname,filename)
 outfile = joinpath(pathname,splitext(filename)[1]*".png")
 
 data = load(fn)
-
-smld = data["smld"]
-smld.datasize = [256, 256]
-nlocs = length(smld.x)
+#varnames = keys(data)
+#smld = data["smld"]
+#nlocs = length(smld.x)
+#@info "There are $nlocs localizations"
+smld = data["loc_data"]
+smld["datasize"] = [256, 256]
+nlocs = length(smld["x"])
 @info "There are $nlocs localizations"
 
 # out = render_blobs(smld; zoom = 4)
@@ -71,14 +74,49 @@ min_sigma = min(minimum(smld_filtered.σ_x), minimum(smld_filtered.σ_y))
 nlocs = length(smld_filtered.x)
 @info "There are $nlocs localizations after filtering"
 
-out, (cm,z_range)= render_blobs(smld_filtered; zoom = 4)
+# converting smld dict to match function signature:
+# Extract values from the smld dictionary
+x_range = (1, smld["datasize"][1])
+y_range = (1, smld["datasize"][2])
+x = smld["x"]
+y = smld["y"]
+σ_x = smld["crlb"][:, 1]
+σ_y = smld["crlb"][:, 2]
+z = smld["z"]  # Assuming you want to use the z values
+
+# Optional parameters
+normalization = :integral
+n_sigmas = 3
+colormap = :jet
+z_range = (quantile(smld["z"], 0.01), quantile(smld["z"], 0.99))
+zoom = 4
+percentile_cutoff = 0.99
+
+# Call the render_blobs function
+out, (cm,z_range)= render_blobs(
+    x_range,
+    y_range,
+    x,
+    y,
+    σ_x,
+    σ_y,
+    normalization= :integral,
+    n_sigmas=3,
+    colormap=:jet,
+    z=z,
+    z_range=z_range,
+    zoom=4,
+    percentile_cutoff=0.99)
+
+## 
+
+#out, (cm,z_range)= render_blobs(smld_filtered; zoom = 4)
+out, (cm,z_range)= render_blobs(smld; zoom = 4)
 
 # calculate quantile range of z 
 z_range = (quantile(smld_filtered.z, 0.01), quantile(smld_filtered.z, 0.99))
 out, (cm,z_range)= render_blobs(smld_filtered; zoom = 4, z_range, percentile_cutoff = 0.98)
 display(out)
 save(outfile, out)
-
-
 
 

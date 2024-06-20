@@ -2,13 +2,14 @@
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+Gtk = "4c0ca9eb-093a-5379-98c5-f87ac0bbbf44"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 ImageView = "86fae568-95e7-573e-a6b2-d8a6b900c9ef"
 Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
-<<<<<<< HEAD
-=======
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
->>>>>>> a8b7f716966792f5a06aa82ce3df99f330b45fa3
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 SMLMData = "5488f106-40b8-4660-84c5-84a168990d1b"
 SMLMSim = "5a0a87e4-02d4-41f5-bf26-b8c94c784a04"
