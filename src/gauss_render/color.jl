@@ -59,29 +59,6 @@ Applies a colormap to a 3D image patch, processing each layer to apply RGB value
 
 # Returns
 - Returns a color-mapped 3D image where each pixel is represented as an RGB value.
-
-# Example
-```julia
-apply_colormap_to_image(image_patch_3d, cmap, 0.95)
-```
-"""
-
-"""
-    apply_colormap_to_image(gray_image::ImagePatch3D, cmap::ColorScheme, percentile_cutoff)
-
-Applies a colormap to a 3D grayscale image patch after clamping its intensity values.
-
-# Arguments
-- `gray_image::ImagePatch3D`            : The input 3D grayscale image patch.
-- `cmap::ColorScheme`                   : The colormap to be applied.
-- `percentile_cutoff`                   : The percentile cutoff for intensity clamping.
-
-# Returns
-- An RGB image with the colormap applied.
-
-# Description
-Clamps the intensity values of each layer in the 3D grayscale image patch based on the specified percentile cutoff, and then applies the given colormap. 
-The final RGB image is constructed by accumulating the color values from each layer.
 """
 function apply_colormap_to_image(gray_image::ImagePatch3D, cmap::ColorScheme, percentile_cutoff)
     # Dimensions of the gray_image

@@ -1,19 +1,15 @@
 """
+    quantile_clamp!(im::AbstractArray{<:Real}, percentile_cutoff::Real)
+
 Quantile normalization and clamping of image values.
+
+This function normalizes the image values by dividing by the maximum value at the specified percentile, then clamps the values between 0 and 1.
 
 # Arguments
 - `im::AbstractArray{<:Real}`: The image array to normalize.
 - `percentile_cutoff::Real`: The percentile threshold for normalization.
-
-# Description
-This function normalizes the image values by dividing by the maximum value at the specified percentile, then clamps the values between 0 and 1.
-
-# Example
-```julia
-quantile_clamp!(image, 0.99)
-```
+Returns nothing
 """
-
 function quantile_clamp!(im::AbstractArray{<:Real}, percentile_cutoff::Real)
     max_val = quantile(im[im.>0], percentile_cutoff)
     im ./= max_val
@@ -22,7 +18,12 @@ function quantile_clamp!(im::AbstractArray{<:Real}, percentile_cutoff::Real)
 end
 
 """
+
+    gen_blob!(patch::ImagePatch2D, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol; zoom::Int=1)
+
 Generate a Gaussian blob in a 2D patch.
+
+This function generates a Gaussian blob at the specified coordinates with given standard deviations and normalizes it as per the specified method.
 
 # Arguments
 - `patch::ImagePatch2D`: The image patch where the blob will be added.
@@ -32,16 +33,7 @@ Generate a Gaussian blob in a 2D patch.
 - `σ_y::Real`: Standard deviation along the y-axis.
 - `normalization::Symbol`: Type of normalization (`:integral` or `:maximum`).
 - `zoom::Int=1`: Zoom factor for the blob.
-
-# Description
-This function generates a Gaussian blob at the specified coordinates with given standard deviations and normalizes it as per the specified method.
-
-# Example
-```julia
-gen_blob!(patch, 50, 50, 2.0, 2.0, :integral, zoom=1)
-```
 """
-
 function gen_blob!(patch::ImagePatch2D, x::Real, y::Real, σ_x::Real, σ_y::Real, normalization::Symbol; zoom::Int=1)
     zoom_σ_x = zoom * σ_x
     zoom_σ_y = zoom * σ_y
@@ -65,23 +57,19 @@ function gen_blob!(patch::ImagePatch2D, x::Real, y::Real, σ_x::Real, σ_y::Real
 end
 
 """
+
+    add_blob!(image::AbstractArray{<:Real}, patch::ImagePatch2D, offset_x::Int, offset_y::Int)
+
 Add a blob to a specified image at a given offset.
+
+This function adds the blob from `patch` to the `image` at the specified offset.
 
 # Arguments
 - `image::AbstractArray{<:Real}`: The image array to modify.
 - `patch::ImagePatch2D`: The image patch containing the blob.
 - `offset_x::Int`: X-offset for the blob placement.
 - `offset_y::Int`: Y-offset for the blob placement.
-
-# Description
-This function adds the blob from `patch` to the `image` at the specified offset.
-
-# Example
-```julia
-add_blob!(image, patch, 10, 10)
-```
 """
-
 function add_blob!(image::AbstractArray{<:Real}, patch::ImagePatch2D, offset_x::Int, offset_y::Int)
     for idx in CartesianIndices(patch.roi)
         global_idx = idx + CartesianIndex(patch.offset_y, patch.offset_x) - CartesianIndex(offset_y, offset_x)
