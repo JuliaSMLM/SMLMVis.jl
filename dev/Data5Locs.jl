@@ -33,8 +33,9 @@ nlocs = length(loc_data["x"])
 @info "There are $nlocs localizations"
 # converting smld dict to match function signature:
 # Extract values from the smld dictionary
-x_range = (1, loc_data["datasize"][2])
-y_range = (1, loc_data["datasize"][1])
+
+#x_range = (1, loc_data["datasize"][2])
+#y_range = (1, loc_data["datasize"][1])
 
 x_raw = loc_data["x"]
 y_raw = loc_data["y"]
@@ -66,79 +67,175 @@ bg = loc_data["bg"][mask]
 connectID = zeros(Int, length(x))
 framenum = zeros(Int, length(x))
 datasetnum = zeros(Int, length(x))
-datasize = [0; 0; 0]
+datasize = [256; 256]
 nframes = 1
 ndatasets = 1
-# Create smld dictionary
-smld_data = Dict(
-    "connectID" => connectID,
-    "x" => x,
-    "y" => y,
-    "z" => z,
-    "σ_x" => σ_x,
-    "σ_y" => σ_y,
-    "σ_z" => σ_z,
-    "photons" => photons,
-    "σ_photons" => σ_photons,
-    "bg" => bg,
-    "σ_bg" => σ_bg,
-    "framenum" => framenum,
-    "datasetnum" => datasetnum,
-    "datasize" => datasize,
-    "nframes" => nframes,
-    "ndatasets" => ndatasets,
-    "datafields" => (:connectID, :x, :y, :z, :σ_x, :σ_y, :σ_z, :photons, :σ_photons, :bg, :σ_bg, :framenum, :datasetnum)
-)
 
-smld = SMLMData.SMLD3D(
-    smld_data["connectID"],
-    smld_data["x"],
-    smld_data["y"],
-    smld_data["z"],
-    smld_data["σ_x"],
-    smld_data["σ_y"],
-    smld_data["σ_z"],
-    smld_data["photons"],
-    smld_data["σ_photons"],
-    smld_data["bg"],
-    smld_data["σ_bg"],
-    smld_data["framenum"],
-    smld_data["datasetnum"],
-    smld_data["datasize"],
-    smld_data["nframes"],
-    smld_data["ndatasets"],
-    smld_data["datafields"]
-)
-# Print the new dictionary to verify
-# println(smld)
+smld = SMLMData.SMLD3D(1) # 6323878
+smld.x = x
+smld.y = y
+smld.z = z
+smld.σ_x = σ_x
+smld.σ_y = σ_y
+smld.σ_z = σ_z
+smld.photons = photons
+smld.σ_photons = σ_photons
+smld.bg = bg
+smld.σ_bg = σ_bg
+smld.framenum = framenum
+smld.datasetnum = datasetnum
+smld.datasize = datasize
+smld.nframes = nframes
+smld.ndatasets = ndatasets
+smld.datafields = (:connectID, :x, :y, :z, :σ_x, :σ_y, :σ_z, :photons, :σ_photons, :bg, :σ_bg, :framenum, :datasetnum)
+smld  
 
 # Optional parameters
 normalization = :integral
 n_sigmas = 3
 colormap = :jet
-z_range = (0.0, 120.0)
-#z_range = (quantile(loc_data["z"], 0.01), quantile(loc_data["z"], 0.99))
+#z_range = (0.0, 120.0)
+z_range = (quantile(loc_data["z"], 0.01), quantile(loc_data["z"], 0.99))
 zoom = 10
-percentile_cutoff = 0.99
+percentile_cutoff = 0.90
 
 # Call the render_blobs function
-out, (cm,z_range) = render_blobs(smld; normalization=normalization, n_sigmas=n_sigmas, colormap=colormap, z_range=z_range, zoom=zoom, percentile_cutoff=percentile_cutoff)
+out, (cm,z_range) = render_blobs(smld; normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff)
 display(out)
 save(outfile, out)
 
-# using GLMakie
+
 # Use GLMakie for visualization
-# fig = Figure(resolution = (800, 800))
-# ax = GLMakie.Axis(fig[1, 1], title = "SMLM Visualization")
-# image!(ax, out, colormap = :jet)
-# Colorbar(fig[1, 2], colormap = :jet, label = "Z Value")
-# display(fig)
+fig = Figure(resolution = (800, 800))
+ax = GLMakie.Axis(fig[1, 1], title = "SMLM Visualization")
+image!(ax, out, colormap = :jet)
+Colorbar(fig[1, 2], colormap = :jet, label = "Z Value")
+display(fig)
 
 # Define the output file path
 output_path = "Y:/Projects/Super Critical Angle Localization Microscopy/Data/10-06-2023/Data5/smld.jld2"
 
 # Save the `smld` dictionary to a JLD2 file
 @save output_path smld
+
+# Create the GLMakie GUI figure
+fig = Figure(resolution = (800, 800))
+
+# Create a central container for the label
+label_layout = GridLayout()
+fig[1, 1] = label_layout
+
+# Add a label to display the status at the top, centered in the figure
+status_label = Label(fig, "SR visualization", halign = :center)
+label_layout[1, 1] = status_label
+
+# Create a grid layout for the buttons at the bottom
+button_layout = GridLayout()
+fig[3, 1] = button_layout
+
+# Create a button for loading the file at the bottom left
+load_button = Button(fig, label = "Load smld.jld2")
+button_layout[1, 1] = load_button
+
+# Create a button for rendering the image at the bottom right
+render_button = Button(fig, label = "Render Image")
+button_layout[1, 2] = render_button
+
+# Add an Axis directly to the main figure for displaying the image
+image_axis = Axis(fig, title = "Rendered Image", aspect = DataAspect())
+fig[2, 1] = image_axis
+
+# Adjust the layout to give more space to the image axis
+fig.layout[1, 1] = label_layout
+fig.layout[3, 1] = button_layout
+
+# Adjust row and column sizes
+fig.layout.rowsizes = [Relative(0.1), Relative(0.8), Relative(0.1)]  # Give 80% of the height to the image axis row
+fig.layout.colsizes = [Relative(1.0)]  # Single column, full width
+
+# Define a callback function to load smld data
+function load_smld_data(button)
+    global smld  # Use the global smld defined earlier
+    status_label.text = "SMLD data loaded"
+end
+
+# Assign the callback to the load button
+on(load_button.clicks) do _
+    load_smld_data(load_button)
+end
+
+# Define a callback function to render and display the image
+function render_image(button)
+    global smld, normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff
+
+    if !isa(z_range, Tuple{Real, Real})
+        error("z_range is not of the correct type. It should be a tuple of two real numbers.")
+    end
+    
+    out, (cm, z_range) = SMLMVis.render_blobs(smld; normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff)
+    
+    # Replace the previous image in the axis
+    image!(image_axis, out, show_axes = false)
+    status_label.text = "Image rendered"
+end
+
+# Assign the callback to the render button
+on(render_button.clicks) do _
+    render_image(render_button)
+end
+
+# Display the figure
+display(fig)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 function read_jld2_keys(file_path::String)
