@@ -7,7 +7,8 @@ using Images
 #using ImageView
 using GLMakie
 using Statistics
-using JLD2 
+using JLD2
+using GeometryBasics 
 # pathname  = "C:\\Data"
 # filename = "Data2-2023-9-19-22-25-4deepfit1.jld2"
 # filename = "Data2-2023-10-6-17-11-54deepfit1.jld2"
@@ -51,18 +52,18 @@ z_raw = loc_data["z"]  # nm ??
 # Threshold 
 σ_xy_max = .2
 σ_z_max = 240
-mask = (σ_x_raw .< σ_xy_max) .& (σ_y_raw .< σ_xy_max) .& (σ_z_raw .< σ_z_max)
+mask_tsh = (σ_x_raw .< σ_xy_max) .& (σ_y_raw .< σ_xy_max) .& (σ_z_raw .< σ_z_max)
 
-x = x_raw[mask]
-y= y_raw[mask]
-z = Float64.(z_raw[mask])
-σ_x = σ_x_raw[mask]
-σ_y = σ_y_raw[mask]
-σ_z = σ_z_raw[mask]
-photons = loc_data["photon"][mask]
-σ_photons = σ_photons_raw[mask]
-bg = loc_data["bg"][mask]
-σ_bg = σ_bg_raw[mask]
+x = x_raw[mask_tsh]
+y= y_raw[mask_tsh]
+z = Float64.(z_raw[mask_tsh])
+σ_x = σ_x_raw[mask_tsh]
+σ_y = σ_y_raw[mask_tsh]
+σ_z = σ_z_raw[mask_tsh]
+photons = loc_data["photon"][mask_tsh]
+σ_photons = σ_photons_raw[mask_tsh]
+bg = loc_data["bg"][mask_tsh]
+σ_bg = σ_bg_raw[mask_tsh]
 # create empty array
 connectID = zeros(Int, length(x))
 framenum = zeros(Int, length(x))
@@ -118,7 +119,45 @@ output_path = "Y:/Projects/Super Critical Angle Localization Microscopy/Data/10-
 # Save the `smld` dictionary to a JLD2 file
 @save output_path smld
 
-# Create the GLMakie GUI figure
+# Function to get rectangle points
+function get_rectangle_points(p1, p2, p3, p4)
+    # Convert each point to Float64 and return
+    return [Point{2,Float64}(p1), Point{2,Float64}(p2), Point{2,Float64}(p3), Point{2,Float64}(p4), Point{2,Float64}(p1)]
+end
+
+# Function for interactive plotting with rectangle tool
+function interactive_plot_with_rectangle_tool(ax, image)
+    points = Observable(Point{2, Float64}[])
+
+    on(events(ax.scene).mousebutton) do event
+        if event.button == Mouse.left && event.action == Mouse.press
+            pos = Point{2, Float64}(mouseposition(ax.scene))
+            if all(pos .>= 0) && all(pos .<= Point{2, Float64}(size(image)))
+                push!(points[], pos)
+                notify(points)
+                scatter!(ax, [pos], color=:red, markersize=5)
+                if length(points[]) == 4
+                    rectangle_points = get_rectangle_points(points[][1], points[][2], points[][3], points[][4])
+                    lines!(ax, rectangle_points, color=:red, linewidth=2)
+                    println("Coordinates of the rectangle: ", rectangle_points)
+
+                    # Store the mask as the four points of the rectangle
+                    global mask = rectangle_points[1:4]
+
+                    # Print the mask
+                    println("The mask is: ", mask)
+
+                    points[] = []
+                    notify(points)
+                end
+            end
+        end
+    end
+
+    return points # Return the points
+end
+
+# GUI setup
 fig = Figure(resolution = (800, 800))
 
 # Create a central container for the label
@@ -126,23 +165,19 @@ label_layout = GridLayout()
 fig[1, 1] = label_layout
 
 # Add a label to display the status at the top, centered in the figure
-status_label = Label(fig, "SR visualization", halign = :center)
+status_label = Label(fig, text = "SR visualization", halign = :center, valign = :center)
 label_layout[1, 1] = status_label
 
-# Create a grid layout for the buttons at the bottom
+# Create a grid layout for the render button at the bottom
 button_layout = GridLayout()
 fig[3, 1] = button_layout
 
-# Create a button for loading the file at the bottom left
-load_button = Button(fig, label = "Load smld.jld2")
-button_layout[1, 1] = load_button
-
-# Create a button for rendering the image at the bottom right
+# Create a button for rendering the image at the bottom center
 render_button = Button(fig, label = "Render Image")
-button_layout[1, 2] = render_button
+button_layout[1, 1] = render_button
 
 # Add an Axis directly to the main figure for displaying the image
-image_axis = Axis(fig, title = "Rendered Image", aspect = DataAspect())
+image_axis = GLMakie.Axis(fig, title = "Rendered Image", aspect = DataAspect())
 fig[2, 1] = image_axis
 
 # Adjust the layout to give more space to the image axis
@@ -153,18 +188,7 @@ fig.layout[3, 1] = button_layout
 fig.layout.rowsizes = [Relative(0.1), Relative(0.8), Relative(0.1)]  # Give 80% of the height to the image axis row
 fig.layout.colsizes = [Relative(1.0)]  # Single column, full width
 
-# Define a callback function to load smld data
-function load_smld_data(button)
-    global smld  # Use the global smld defined earlier
-    status_label.text = "SMLD data loaded"
-end
-
-# Assign the callback to the load button
-on(load_button.clicks) do _
-    load_smld_data(load_button)
-end
-
-# Define a callback function to render and display the image
+# Define a callback function to render and display the image with mouse interaction
 function render_image(button)
     global smld, normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff
 
@@ -177,6 +201,9 @@ function render_image(button)
     # Replace the previous image in the axis
     image!(image_axis, out, show_axes = false)
     status_label.text = "Image rendered"
+
+    # Enable mouse interaction
+    interactive_plot_with_rectangle_tool(image_axis, out)
 end
 
 # Assign the callback to the render button
@@ -184,12 +211,49 @@ on(render_button.clicks) do _
     render_image(render_button)
 end
 
-# Display the figure
 display(fig)
 
 
 
 
+# create a mask on the rendered image by plotting the rectangle on the image. The mask should be: 
+# mask = (smld.x > xₘᵢₙ) & (smld.x < xₘₐₓ) & (smld.y > yₘᵢₙ) & (smld.y < yₘₐₓ) 
+# where xₘᵢₙ, xₘₐₓ, yₘᵢₙ, yₘₐₓ are the minimum and maximum x and y values of the rectangle, respectively. 
+
+# Example mask
+# mask = [Point2f0(1212.2068, 2258.8857), 
+#         Point2f0(1587.8201, 2333.2522), 
+#         Point2f0(1833.0552, 1921.1372), 
+#         Point2f0(1538.1522, 1803.3901)]
+
+# Extract x and y coordinates
+x_coords = [point[1] for point in mask]
+y_coords = [point[2] for point in mask]
+
+# Find the minimum and maximum values
+x_min = minimum(x_coords)
+x_max = maximum(x_coords)
+y_min = minimum(y_coords)
+y_max = maximum(y_coords)
+
+println("X range: ($x_min, $x_max)")
+println("Y range: ($y_min, $y_max)")
+
+filtered_locs = (smld.x .> x_min) .& (smld.x .< x_max) .& (smld.y .> y_min) .& (smld.y .< y_max)
+xs = smld.x[filtered_locs]
+zs = smld.z[filtered_locs]
+
+# julia> minimum(smld.x)
+# 4.094184875488281
+
+# julia> maximum(smld.x)
+# 247.3487205505371
+
+# julia> minimum(smld.y)
+# 3.5
+
+# julia> maximum(smld.y)
+# 249.5
 
 
 
@@ -198,46 +262,8 @@ display(fig)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Additional functionality
+# Function to read the keys of a .jld2 file
 function read_jld2_keys(file_path::String)
     # Open the .jld2 file in read mode
     jld2_file = jldopen(file_path, "r")
