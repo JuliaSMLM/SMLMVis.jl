@@ -1,79 +1,5 @@
-using Revise
-using SMLMVis
-using FileIO
-using SMLMData
-using Images
-using CairoMakie
-#using ImageView
-using GLMakie
-using Statistics
-using JLD2
-using GeometryBasics 
-using PolygonOps: inpolygon
-using Distributions
-# pathname  = "C:\\Data"
-# filename = "Data2-2023-9-19-22-25-4deepfit1.jld2"
-# filename = "Data2-2023-10-6-17-11-54deepfit1.jld2"
 
-
-
-# My changes goes here
-pathname  = "Y:/Projects/Super Critical Angle Localization Microscopy/Data/10-06-2023/Data5"
-filename = "data.jld2"
-
-fn = joinpath(pathname,filename)
-outfile = joinpath(pathname,splitext(filename)[1]*".png")
-
-data = load(fn)
-loc_data = data["loc_data"]
-println("Type of loc_data:", typeof(loc_data))
-#dump(loc_data)
-#crlb = loc_data["crlb"]
-#smld = data["loc_data"]
-#println(keys(loc_data))
-#loc_data["datasize"] = [256, 256]
-nlocs = length(loc_data["x"])
-@info "There are $nlocs localizations"
-# converting smld dict to match function signature:
-# Extract values from the smld dictionary
-
-#x_range = (1, loc_data["datasize"][2])
-#y_range = (1, loc_data["datasize"][1])
-
-x_raw = loc_data["x"]
-y_raw = loc_data["y"]
-z_raw = loc_data["z"]  # nm ??
-
-
-σ_x_raw = loc_data["crlb"][:, 1]
-σ_y_raw = loc_data["crlb"][:, 2]
-σ_z_raw = loc_data["crlb"][:, 5]  # check - is this in nm ??
-σ_photons_raw = loc_data["crlb"][:, 3] #  
-σ_bg_raw = loc_data["crlb"][:, 4] 
-
-# Threshold 
-σ_xy_max = .2
-σ_z_max = 240
-mask_tsh = (σ_x_raw .< σ_xy_max) .& (σ_y_raw .< σ_xy_max) .& (σ_z_raw .< σ_z_max)
-
-x = x_raw[mask_tsh]
-y= y_raw[mask_tsh]
-z = Float64.(z_raw[mask_tsh])
-σ_x = σ_x_raw[mask_tsh]
-σ_y = σ_y_raw[mask_tsh]
-σ_z = σ_z_raw[mask_tsh]
-photons = loc_data["photon"][mask_tsh]
-σ_photons = σ_photons_raw[mask_tsh]
-bg = loc_data["bg"][mask_tsh]
-σ_bg = σ_bg_raw[mask_tsh]
-# create empty array
-connectID = zeros(Int, length(x))
-framenum = zeros(Int, length(x))
-datasetnum = zeros(Int, length(x))
-datasize = [256; 256]
-nframes = 1
-ndatasets = 1
-
+# This part of script is plotting the x & y localizations within a polygon drawn on the rendered image
 smld = SMLMData.SMLD3D(1) # 6323878
 smld.x = x
 smld.y = y
@@ -91,45 +17,20 @@ smld.datasize = datasize
 smld.nframes = nframes
 smld.ndatasets = ndatasets
 smld.datafields = (:connectID, :x, :y, :z, :σ_x, :σ_y, :σ_z, :photons, :σ_photons, :bg, :σ_bg, :framenum, :datasetnum)
-smld  
+smld
 
-# Optional parameters
 normalization = :integral
 n_sigmas = 3
 colormap = :jet
-#z_range = (0.0, 120.0)
 z_range = (quantile(loc_data["z"], 0.01), quantile(loc_data["z"], 0.99))
 zoom = 10
 percentile_cutoff = 0.90
 
-# Call the render_blobs function
-out, (cm,z_range) = render_blobs(smld; normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff)
-display(out)
-save(outfile, out)
-
-
-# Use GLMakie for visualization
-# Calculate the range of smld.x and smld.y
-img_width, img_height = size(out)
-fig = Figure(resolution = (800, 800))
-ax = GLMakie.Axis(fig[1, 1], title = "SMLM Visualization", limits = ((0, img_width), (0, img_height)))
-image!(ax, out, colormap = :jet)
-Colorbar(fig[1, 2], colormap = :jet, label = "Z Value")
-display(fig)
-
-# Define the output file path
-output_path = "Y:/Projects/Super Critical Angle Localization Microscopy/Data/10-06-2023/Data5/smld.jld2"
-
-# Save the `smld` dictionary to a JLD2 file
-@save output_path smld
-
-#============================================================#
-
-# This part of script is plotting the x & y localizations within a polygon drawn on the rendered image
 
 function get_polygon_points(p1, p2, p3, p4)
     return [p1, p2, p3, p4, p1]
 end
+
 
 function interactive_plot_with_polygon_tool(ax, image)
     points = Observable(Point2f0[])
@@ -279,7 +180,7 @@ scatter!(ax2, x_coords, y_coords, markersize = 5, color = :blue)
 display(fig2)
 
 
-#=======================================================================================================#
+#=================================================================================================================================================================#
 
 # Extract and Plot the smld.z within polygon
 z_range = (quantile(loc_data["z"], 0.01), quantile(loc_data["z"], 0.99))
@@ -348,6 +249,7 @@ function extract_polygon_data_and_points(smld, polygon_points, zoom)
     
     return localizations, localizations_z
 end
+
 
 
 # Function to render the image and enable interactive polygon drawing
@@ -475,54 +377,3 @@ display(fig2)
 # scatter!(ax2, x_coords, y_coords, z_coords, markersize = 5, color = :blue) 
 # display(fig2)
 
-
-
-#==============================================================================================================================#
-
-# create a mask on the rendered image by plotting the rectangle on the image. The mask should be: 
-# mask = (smld.x > xₘᵢₙ) & (smld.x < xₘₐₓ) & (smld.y > yₘᵢₙ) & (smld.y < yₘₐₓ) 
-# where xₘᵢₙ, xₘₐₓ, yₘᵢₙ, yₘₐₓ are the minimum and maximum x and y values of the rectangle, respectively. 
-
-# Example mask
-# mask = [Point2f0(1212.2068, 2258.8857), 
-#         Point2f0(1587.8201, 2333.2522), 
-#         Point2f0(1833.0552, 1921.1372), 
-#         Point2f0(1538.1522, 1803.3901)]
-
-# Extract x and y coordinates
-x_coords = [point[1] for point in mask]
-y_coords = [point[2] for point in mask]
-
-# Find the minimum and maximum values
-x_min = minimum(x_coords)
-x_max = maximum(x_coords)
-y_min = minimum(y_coords)
-y_max = maximum(y_coords)
-
-println("X range: ($x_min, $x_max)")
-println("Y range: ($y_min, $y_max)")
-
-filtered_locs = (smld.x .> x_min) .& (smld.x .< x_max) .& (smld.y .> y_min) .& (smld.y .< y_max)
-xs = smld.x[filtered_locs]
-zs = smld.z[filtered_locs]
-
-
-
-# Additional functionality
-# Function to read the keys of a .jld2 file
-function read_jld2_keys(file_path::String)
-    # Open the .jld2 file in read mode
-    jld2_file = jldopen(file_path, "r")
-
-    # Get the keys of the .jld2 file
-    keys = JLD2.keys(jld2_file)
-
-    # Print the keys
-    println("Keys in the file: ", collect(keys))
-
-    # Close the file
-    close(jld2_file)
-end
-
-file_path = "Y:/Projects/Super Critical Angle Localization Microscopy/Data/10-06-2023/Data5/smld.jld2"
-read_jld2_keys(file_path)
