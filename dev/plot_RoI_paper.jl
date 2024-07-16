@@ -15,3 +15,16 @@ draw_Roi(manual_polygon_points)
 z_range = (quantile(loc_data["z"], 0.01), quantile(loc_data["z"], 0.99))
 manual_polygon_points = [Point2f0(), Point2f0(), Point2f0(), Point2f0(), Point2f0()]
 draw_Roi(manual_polygon_points)
+
+
+
+
+
+
+
+
+
+
+
+# To index out:
+# subout = out[550:1140, 480:1600]
