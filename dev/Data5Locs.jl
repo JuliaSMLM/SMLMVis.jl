@@ -97,11 +97,13 @@ smld
 normalization = :integral
 n_sigmas = 3
 colormap = :jet
-#z_range = (0.0, 120.0)
+#z_range = (0.0, 100.0)
 z_range = (quantile(loc_data["z"], 0.01), quantile(loc_data["z"], 0.99))
 zoom = 10
 percentile_cutoff = 0.90
-
+# x_range = (1, 256)
+# y_range = (1, 256)
+# out, (cm,z_range) = SMLMVis.render_blobs(x_range, y_range, smld.x, smld.y, smld.σ_x, smld.σ_y; normalization, n_sigmas, colormap=:hot, z_range, zoom, percentile_cutoff)
 # Call the render_blobs function
 out, (cm,z_range) = render_blobs(smld; normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff)
 display(out)
@@ -533,7 +535,7 @@ function extract_polygon_data_and_points(smld, polygon_points, zoom)
 end
 
 function render_image(button)
-    global smld, normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff, image_axis, localizations_z
+    global smld, normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff, image_axis, localizations, localizations_z
 
     if !isa(z_range, Tuple{Real, Real})
         error("z_range is not of the correct type. It should be a tuple of two real numbers.")
@@ -554,6 +556,7 @@ function render_image(button)
             println("No polygon was defined.")
         end
     end
+    return mask
 end
 
 fig = Figure(resolution = (1000, 800))
@@ -676,3 +679,254 @@ read_jld2_keys(file_path)
 
 
 #==============================================================================================================================#
+# Extract subregion from out:  Matrix{RGB{Float64}}
+subout = out[550:1140, 480:1600]
+
+#==============================================================================================================================#
+# Rotation matrix:
+using LinearAlgebra
+# Extract the x, y, z coordinates from localizations
+x_coords = [point[2] for point in localizations]
+y_coords = [point[1] for point in localizations]
+z_coords = Float64.(localizations_z)
+
+# Convert degrees to radians
+theta = 45 * (π / 180)
+
+# Define the 2D rotation matrix for θ = 90 degrees
+R = [cos(theta) -sin(theta); sin(theta) cos(theta)]
+
+# Apply the rotation matrix to each (x, y) point
+new_coords = [R * [x; y] for (x, y) in zip(x_coords, y_coords)]
+new_x_coords = [point[1] for point in new_coords]
+new_y_coords = [point[2] for point in new_coords]
+
+# Plot new_x_coords vs z_coords
+fig = Figure()
+ax = GLMakie.Axis(fig[1, 1], xlabel="New X Coordinates", ylabel="Z Coordinates")
+scatter!(ax, new_x_coords, z_coords, color=:blue)
+fig[1, 1] = ax
+fig
+
+
+x_range = (Int64(round(minimum(new_x_coords))), Int64(round(maximum(new_x_coords))))
+z_range = (0, 120)
+#    
+out2, (cm, z_range) = SMLMVis.render_blobs(
+    x_range,
+    z_range,
+    new_x_coords,
+    z_coords,
+    smld.σ_x,
+    smld.σ_z,;
+    normalization=normalization,
+    n_sigmas=n_sigmas,
+    colormap=colormap,
+    zoom,
+    percentile_cutoff
+)
+
+#==============================================================================================================================#
+
+z_range = (quantile(loc_data["z"], 0.01), quantile(loc_data["z"], 0.99))
+function get_polygon_points(p1, p2, p3, p4)
+    return [p1, p2, p3, p4, p1]
+end
+
+
+function interactive_plot_with_polygon_tool(ax, image)
+    points = Observable(Point2f0[])
+    mask_ready = Observable(false)
+    mask = Observable(Point2f0[])
+    
+    on(events(ax.scene).mousebutton) do event
+        if event.button == Mouse.left && event.action == Mouse.press
+            pos = mouseposition(ax.scene)
+            if all(pos .>= 0) && all(pos .<= Point2f0(size(image)))
+                push!(points[], pos)
+                notify(points)
+                scatter!(ax, [pos], color=:red, markersize=4)
+                if length(points[]) == 4
+                    polygon_points = get_polygon_points(points[][1], points[][2], points[][3], points[][4])
+                    lines!(ax, polygon_points, color=:red, linewidth=2)
+                    println("Coordinates of the polygon: ", polygon_points)
+                    mask[] = polygon_points
+                    println("The mask is: ", mask[])
+                    points[] = []
+                    notify(points)
+                    mask_ready[] = true
+                end
+            end
+        end
+    end
+    
+    return points, mask, mask_ready
+end
+
+function extract_polygon_data_and_points(smld, polygon_points, zoom)
+    println("Polygon points: ", polygon_points)
+
+    # Initialize empty arrays to store the localizations, their z-coordinates, σ_x, and σ_z within the polygon
+    global localizations = []
+    global localizations_z = []
+    global localizations_σ_x = []
+    global localizations_σ_z = []
+
+    # Iterate over each localization in smld.x and smld.y
+    for i in 1:length(smld.x)
+        # Scale the coordinates by zoom
+        scaled_x = smld.x[i] * zoom
+        scaled_y = smld.y[i] * zoom
+        
+        # Create a point from the scaled coordinates
+        point = Point2f0(scaled_x, scaled_y)
+        
+        # Check if the localization is inside the polygon
+        if inpolygon(point, polygon_points) != 0
+            # If the localization is inside the polygon, add its coordinates to the localizations array
+            push!(localizations, (smld.y[i], smld.x[i]))
+            push!(localizations_z, smld.z[i])
+            push!(localizations_σ_x, smld.σ_x[i])
+            push!(localizations_σ_z, smld.σ_z[i])
+        end
+    end
+    
+    # Print the number of localizations inside the polygon
+    println("Number of localizations inside the polygon: ", length(localizations))
+    
+    return localizations, localizations_z, localizations_σ_x, localizations_σ_z
+end
+
+# Function to render the image and enable interactive polygon drawing
+function render_image(button)
+    global smld, normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff
+
+    if !isa(z_range, Tuple{Real, Real})
+        error("z_range is not of the correct type. It should be a tuple of two real numbers.")
+    end
+    
+    out, (cm, z_range) = SMLMVis.render_blobs(smld; normalization, n_sigmas, colormap, z_range, zoom, percentile_cutoff)
+    
+    # Replace the previous image in the axis
+    image!(image_axis, out', show_axes = false) # transpose out
+    status_label.text = "Image rendered"
+
+    # Enable mouse interaction
+    points, mask, mask_ready = interactive_plot_with_polygon_tool(image_axis, out)
+
+    # Observable to store points inside the polygon
+    polygon_points_inside = Observable(Point2f0[])
+
+    # Extract the data and points after the rectangle is defined
+    on(mask_ready) do ready
+        if ready
+            localizations, localizations_z, localizations_σ_x, localizations_σ_z = extract_polygon_data_and_points(smld, mask[], zoom)
+            polygon_points_inside[] = [Point2f0(loc[2] * zoom, loc[1] * zoom) for loc in localizations]
+            println("Number of localizations inside the polygon: ", length(localizations))
+            #println("Z-coordinates inside the polygon: ", localizations_z)
+        else
+            println("No polygon was defined.")
+        end
+    end
+
+    # Plot the localizations inside the polygon as red cross markers
+    on(polygon_points_inside) do points
+        scatter!(image_axis, points, markersize=5, marker=:circle, color=:red)
+    end
+end
+
+# GUI setup
+fig = Figure(resolution = (800, 800))
+
+# Create a central container for the label
+label_layout = GridLayout()
+fig[1, 1] = label_layout
+
+# Add a label to display the status at the top, centered in the figure
+status_label = Label(fig, text = "SR image visualization", halign = :center, valign = :center)
+label_layout[1, 1] = status_label
+
+# Create a grid layout for the render button at the bottom
+button_layout = GridLayout()
+fig[3, 1] = button_layout
+
+# Create a button for rendering the image at the bottom center
+render_button = Button(fig, label = "Render Image")
+button_layout[1, 1] = render_button
+
+# Add an Axis directly to the main figure for displaying the image
+image_axis = GLMakie.Axis(fig, title = "Rendered Image", aspect = DataAspect())
+fig[2, 1] = image_axis
+
+# Adjust the layout to give more space to the image axis
+fig.layout[1, 1] = label_layout
+fig.layout[3, 1] = button_layout
+
+# Adjust row and column sizes
+fig.layout.rowsizes = [Relative(0.1), Relative(0.8), Relative(0.1)]
+fig.layout.colsizes = [Relative(1.0)]
+
+# Assign the callback to the render button
+on(render_button.clicks) do _
+    render_image(render_button)
+end
+
+display(fig)
+
+# Extract localizations and σ_x, σ_z values within the polygon
+#localizations, localizations_z, localizations_σ_x, localizations_σ_z = extract_polygon_data_and_points(smld, mask[], zoom)
+
+# Coordinates
+x_locs = Float64.([point[2] for point in localizations])
+y_locs = Float64.([point[1] for point in localizations])
+z_locs = Float64.(localizations_z)
+σ_x_locs = Float64.(localizations_σ_x)
+σ_z_locs = Float64.(localizations_σ_z)
+
+# Convert degrees to radians
+theta = 90 * (π / 180)
+
+# Define the 2D rotation matrix for θ = 45 degrees
+R = [cos(theta) -sin(theta); sin(theta) cos(theta)]
+
+# Apply the rotation matrix to each (x, y) point
+new_coords = [R * [x; y] for (x, y) in zip(x_locs, y_locs)]
+rot_x_locs = [point[1] for point in new_coords]
+rot_y_locs = [point[2] for point in new_coords]
+
+
+# Plot new_x_coords vs z_coords
+fig = Figure()
+ax = GLMakie.Axis(fig[1, 1], xlabel="New X Coordinates", ylabel="Z Coordinates")
+scatter!(ax, rot_x_locs, z_locs, color=:blue)
+fig[1, 1] = ax
+fig
+
+# Define x_range and z_range for rendering blobs
+# x_range = (Int64(round(minimum(new_x_coords))), Int64(round(maximum(new_x_coords))))
+# z_range = (Int64(round(minimum(localizations_z))), Int64(round(maximum(localizations_z))))
+#z_range = (quantile(loc_data["z"], 0.01), quantile(loc_data["z"], 0.99))
+x_range = (106, 112)
+y_range = (0, 100)
+normalization = :integral
+n_sigmas = 3
+colormap = :jet
+#z_range = (0.0, 100.0)
+zoom = 1
+percentile_cutoff = 0.90
+# z = nothing
+z_range = (0.0, 100.0)
+# Render blobs with the updated coordinates and σ values
+out2, (_, _) = SMLMVis.render_blobs(
+    x_range,
+    y_range,
+    rot_x_locs,
+    z_locs,
+    σ_x_locs,
+    σ_z_locs;
+    normalization=normalization,
+    n_sigmas=n_sigmas,
+    colormap, z_range,
+    zoom=zoom,
+    percentile_cutoff=percentile_cutoff
+)
