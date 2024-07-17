@@ -3,7 +3,7 @@ using SMLMVis
 using FileIO
 using SMLMData
 using Images
-#using CairoMakie
+using CairoMakie
 #using ImageView
 using GLMakie
 using Statistics
@@ -880,8 +880,12 @@ display(fig)
 x_locs = Float64.([point[2] for point in localizations])
 y_locs = Float64.([point[1] for point in localizations])
 z_locs = Float64.(localizations_z)
+z_locs = (z_locs .* 2) ./ 129.0
+#z_locs = (z_locs .* 2) 
 σ_x_locs = Float64.(localizations_σ_x)
-σ_z_locs = Float64.(localizations_σ_z)
+σ_x_locs = sqrt.(σ_x_locs) # sqrt of crlb
+σ_z_locs = Float64.(localizations_σ_z) 
+σ_z_locs = sqrt.(σ_z_locs) # sqrt of crlb
 
 # Convert degrees to radians
 theta = 90 * (π / 180)
@@ -891,31 +895,32 @@ R = [cos(theta) -sin(theta); sin(theta) cos(theta)]
 
 # Apply the rotation matrix to each (x, y) point
 new_coords = [R * [x; y] for (x, y) in zip(x_locs, y_locs)]
-rot_x_locs = [point[1] for point in new_coords]
+rot_x_locs = [point[1] for point in new_coords] # .* loc_data["pz"]
+rot_x_locs = rot_x_locs .- minimum(rot_x_locs)
 rot_y_locs = [point[2] for point in new_coords]
 
 
 # Plot new_x_coords vs z_coords
-fig = Figure()
-ax = GLMakie.Axis(fig[1, 1], xlabel="New X Coordinates", ylabel="Z Coordinates")
-scatter!(ax, rot_x_locs, z_locs, color=:blue)
-fig[1, 1] = ax
-fig
+fig2 = Figure()
+ax2 = GLMakie.Axis(fig2[1, 1], xlabel="X Coordinates", ylabel="Z Coordinates")
+scatter!(ax2, rot_x_locs, z_locs, color=:blue)
+fig2[1, 1] = ax2
+fig2
 
 # Define x_range and z_range for rendering blobs
-# x_range = (Int64(round(minimum(new_x_coords))), Int64(round(maximum(new_x_coords))))
-# z_range = (Int64(round(minimum(localizations_z))), Int64(round(maximum(localizations_z))))
-#z_range = (quantile(loc_data["z"], 0.01), quantile(loc_data["z"], 0.99))
-x_range = (106, 112)
-y_range = (0, 100)
+#x_range = (Int64(round(minimum(rot_x_locs))), Int64(round(maximum(rot_x_locs))))
+#y_range = (Int64(round(minimum(z_locs))), Int64(round(maximum(z_locs))))
+x_range = (0, 20)
+y_range = (0, 2)
+σ_x_locs = σ_x_locs .* 129.0
+σ_z_locs = σ_z_locs .* 2.0
 normalization = :integral
 n_sigmas = 3
 colormap = :jet
 #z_range = (0.0, 100.0)
-zoom = 1
+zoom = 10
 percentile_cutoff = 0.90
-# z = nothing
-z_range = (0.0, 100.0)
+# rot_x_locs .*= loc_data["pz"]
 # Render blobs with the updated coordinates and σ values
 out2, (_, _) = SMLMVis.render_blobs(
     x_range,
@@ -924,9 +929,9 @@ out2, (_, _) = SMLMVis.render_blobs(
     z_locs,
     σ_x_locs,
     σ_z_locs;
-    normalization=normalization,
-    n_sigmas=n_sigmas,
-    colormap, z_range,
-    zoom=zoom,
-    percentile_cutoff=percentile_cutoff
+    normalization,
+    n_sigmas,
+    colormap, 
+    zoom,
+    percentile_cutoff
 )
