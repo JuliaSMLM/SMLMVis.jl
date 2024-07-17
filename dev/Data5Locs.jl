@@ -3,7 +3,7 @@ using SMLMVis
 using FileIO
 using SMLMData
 using Images
-using CairoMakie
+#using CairoMakie
 #using ImageView
 using GLMakie
 using Statistics
@@ -44,10 +44,12 @@ x_raw = loc_data["x"]
 y_raw = loc_data["y"]
 z_raw = loc_data["z"]  # nm ??
 
+hist(x_raw)
+hist(z_raw)
 
-σ_x_raw = loc_data["crlb"][:, 1]
-σ_y_raw = loc_data["crlb"][:, 2]
-σ_z_raw = loc_data["crlb"][:, 5]  # check - is this in nm ??
+σ_x_raw = sqrt.(loc_data["crlb"][:, 1])
+σ_y_raw = sqrt.(loc_data["crlb"][:, 2])
+σ_z_raw = sqrt.(loc_data["crlb"][:, 5])  # check - is this in nm ??
 σ_photons_raw = loc_data["crlb"][:, 3] #  
 σ_bg_raw = loc_data["crlb"][:, 4] 
 
@@ -880,58 +882,116 @@ display(fig)
 x_locs = Float64.([point[2] for point in localizations])
 y_locs = Float64.([point[1] for point in localizations])
 z_locs = Float64.(localizations_z)
-z_locs = (z_locs .* 2) ./ 129.0
-#z_locs = (z_locs .* 2) 
+
+pixelsize_xy = .129 # micron 
+pixelsize_z = 0.002 # micron 
+
+z_locs_micron = z_locs .* pixelsize_z
+x_locs_micron = x_locs .* pixelsize_xy
+y_locs_micron = y_locs .* pixelsize_xy
+
+fig = Figure()
+ax = GLMakie. Axis(fig[1, 1], xlabel="X Coordinates (μm)", ylabel="Y Coordinates (μm)", aspect = DataAspect())
+scatter!(ax, x_locs_micron, y_locs_micron)
+fig
+
 σ_x_locs = Float64.(localizations_σ_x)
-σ_x_locs = sqrt.(σ_x_locs) # sqrt of crlb
 σ_z_locs = Float64.(localizations_σ_z) 
-σ_z_locs = sqrt.(σ_z_locs) # sqrt of crlb
+
+σ_x_locs_micron = σ_x_locs .* pixelsize_xy
+σ_z_locs_micron = σ_z_locs .* pixelsize_z
+
 
 # Convert degrees to radians
-theta = 90 * (π / 180)
+theta = 45 * (π / 180)
 
-# Define the 2D rotation matrix for θ = 45 degrees
+# Define the 2D rotation matrix
 R = [cos(theta) -sin(theta); sin(theta) cos(theta)]
 
 # Apply the rotation matrix to each (x, y) point
-new_coords = [R * [x; y] for (x, y) in zip(x_locs, y_locs)]
+new_coords = [R * [x; y] for (x, y) in zip(x_locs_micron, y_locs_micron)]
 rot_x_locs = [point[1] for point in new_coords] # .* loc_data["pz"]
 rot_x_locs = rot_x_locs .- minimum(rot_x_locs)
 rot_y_locs = [point[2] for point in new_coords]
+rot_y_locs = rot_y_locs .- minimum(rot_y_locs)
+
+fig = Figure()
+ax = GLMakie. Axis(fig[1, 1], xlabel="X Coordinates (μm)", ylabel="Y Coordinates (μm)", aspect = DataAspect())
+scatter!(ax, rot_x_locs, rot_y_locs)
+fig
 
 
-# Plot new_x_coords vs z_coords
-fig2 = Figure()
-ax2 = GLMakie.Axis(fig2[1, 1], xlabel="X Coordinates", ylabel="Z Coordinates")
-scatter!(ax2, rot_x_locs, z_locs, color=:blue)
-fig2[1, 1] = ax2
-fig2
+fig = Figure()
+ax = GLMakie. Axis(fig[1, 1], xlabel="X Coordinates (μm)", ylabel="Y Coordinates (μm)", aspect = DataAspect())
+scatter!(ax, rot_x_locs, z_locs_micron)
+fig
 
-# Define x_range and z_range for rendering blobs
-#x_range = (Int64(round(minimum(rot_x_locs))), Int64(round(maximum(rot_x_locs))))
-#y_range = (Int64(round(minimum(z_locs))), Int64(round(maximum(z_locs))))
-x_range = (0, 20)
-y_range = (0, 2)
-σ_x_locs = σ_x_locs .* 129.0
-σ_z_locs = σ_z_locs .* 2.0
+
+# Render blobs with the updated coordinates and σ values
+hist(rot_x_locs)
+hist(z_locs)
+
 normalization = :integral
 n_sigmas = 3
 colormap = :jet
-#z_range = (0.0, 100.0)
-zoom = 10
+zoom = 100 # to get from micron to 10 nm 
 percentile_cutoff = 0.90
-# rot_x_locs .*= loc_data["pz"]
-# Render blobs with the updated coordinates and σ values
-out2, (_, _) = SMLMVis.render_blobs(
-    x_range,
-    y_range,
-    rot_x_locs,
-    z_locs,
-    σ_x_locs,
-    σ_z_locs;
-    normalization,
-    n_sigmas,
-    colormap, 
-    zoom,
-    percentile_cutoff
-)
+
+
+smld = SMLMData.SMLD2D(length(rot_x_locs)) # 6323878
+smld.x = rot_x_locs./pixelsize_xy
+smld.y = z_locs_micron./pixelsize_xy
+smld.σ_x = σ_x_locs_micron./pixelsize_xy
+smld.σ_y = σ_z_locs_micron./pixelsize_xy #make square pixels
+# smld.photons .= 1.0
+# smld.σ_photons .= 1.0
+# smld.bg .= 1.0
+# smld.σ_bg .= 1.0
+# smld.framenum .= 1.0
+# smld.datasetnum .= 1
+smld.datasize = [round(maximum(smld.y) -  minimum(smld.y)), round(maximum(smld.x) - minimum(smld.x))].+1
+# smld.nframes = 1
+# smld.ndatasets = 1
+smld  
+
+hist(smld.σ_x)
+hist(smld.σ_y)
+hist(smld.x)
+hist(smld.y)
+hist(σ_z_locs_micron)
+out2, (cm, z_range) = SMLMVis.render_blobs(smld; zoom = 100)
+display(out2)
+size(out2)
+
+
+# out2, (_, _) = SMLMVis.render_blobs(
+#     Int.((floor(minimum(rot_x_locs)), floor(maximum(rot_x_locs)))),
+#     Int.((floor(minimum(z_locs_micron)), floor(maximum(z_locs_micron)))),
+#     rot_x_locs,
+#     z_locs_micron,
+#     σ_x_locs_micron,
+#     σ_z_locs_micron;
+#     normalization,
+#     n_sigmas,
+#     colormap, 
+#     zoom,
+#     percentile_cutoff
+# )
+
+
+# MWE that breaks:
+
+
+nlocs = 1000
+sz_x = 10
+sz_y = 2
+σ_big = 10
+smld = SMLMData.SMLD2D(nlocs)
+smld.x = rand(nlocs)*sz_x
+smld.y = rand(nlocs)*sz_y
+smld.σ_x = ones(nlocs)
+smld.σ_y = ones(nlocs)
+smld.datasize = [sz_y, sz_x] # large aspect ratio breaks the rendering
+out2, (cm, z_range) = SMLMVis.render_blobs(smld; zoom = 100)
+display(out2)
+
