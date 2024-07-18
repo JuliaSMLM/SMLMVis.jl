@@ -20,7 +20,10 @@ using Statistics
 export render_blobs
 
 include("types.jl")
+include("physicalarray.jl")
 include("blobrender.jl")
 include("interface.jl")
+
+using .PhysicalArrays
 
 end

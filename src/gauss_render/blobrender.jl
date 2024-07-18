@@ -71,7 +71,13 @@ end
 function update_final_image!(final_image::RGBArray{Float32}, rois::Vector{OffsetArray{Float32,2}})
     for roi in rois
         for idx::CartesianIndex{2} in CartesianIndices(roi)
+            try
             final_image.r[idx] += roi[idx]
+            catch e
+                println(roi.offsets)
+                println("Error at $idx")
+                throw(e)
+            end
             final_image.g[idx] += roi[idx]
             final_image.b[idx] += roi[idx]
         end
