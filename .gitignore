@@ -11,3 +11,6 @@ dev/Manifest.toml
 docs/Manifest.toml
 .vscode/*
 
+
+**/.claude/settings.local.json
+/dev/output/
