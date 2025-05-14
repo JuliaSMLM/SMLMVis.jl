@@ -1,99 +1,77 @@
-# Basic test to verify SMLMVis functionality
+# test_basic.jl
+# Tests the coordinate fix with a really simple pattern
+using Pkg
+Pkg.activate(".")
 
-using SMLMVis
 using SMLMData
+using SMLMVis
+using Random
 using Images
 
-println("Creating a simple 2D test dataset...")
+# Create output directory
+mkpath("dev/output")
 
-# Create a simple camera
-camera = IdealCamera(100, 100, 0.1)  # 100x100 pixels, 100nm pixel size
-
-# Create multiple emitters with strong signal
-emitters = [
-    # Center emitter
-    Emitter2DFit{Float64}(
-        5.0, 5.0,                # x, y coords (microns)
-        10000.0, 10.0,           # photons (increased), background
-        0.15, 0.15,              # position uncertainties (microns)
-        50.0, 2.0;               # photon/bg uncertainties
-        frame = 1,               # frame number
-        dataset = 1,             # dataset ID
-        track_id = 1,            # trajectory ID
-        id = 1                   # unique ID
-    ),
-    # Another emitter
-    Emitter2DFit{Float64}(
-        3.0, 3.0,                # x, y coords (microns)
-        8000.0, 10.0,            # photons, background
-        0.15, 0.15,              # position uncertainties (microns)
-        50.0, 2.0;               # photon/bg uncertainties
-        frame = 1,               # frame number
-        dataset = 1,             # dataset ID
-        track_id = 2,            # trajectory ID
-        id = 2                   # unique ID
-    ),
-    # A third emitter
-    Emitter2DFit{Float64}(
-        7.0, 7.0,                # x, y coords (microns)
-        12000.0, 10.0,           # photons, background
-        0.15, 0.15,              # position uncertainties (microns)
-        50.0, 2.0;               # photon/bg uncertainties
-        frame = 1,               # frame number
-        dataset = 1,             # dataset ID
-        track_id = 3,            # trajectory ID
-        id = 3                   # unique ID
-    )
-]
-
-# Create an SMLD
-smld = BasicSMLD(emitters, camera, 1, 1, Dict{String,Any}())
-
-println("Rendering with default settings...")
-println("SMLD has $(length(smld.emitters)) emitters")
-println("Emitter coordinates (microns):")
-for (i, e) in enumerate(smld.emitters)
-    println("  $i: ($(e.x), $(e.y)) with $(e.photons) photons")
+# Create a test pattern with emitters distributed in a grid pattern
+function create_test_grid()
+    # Create a camera
+    camera = SMLMData.IdealCamera(128, 128, 0.1)
+    
+    # Create emitters in a grid pattern
+    emitters = []
+    
+    # Number of points in each dimension
+    grid_size = 10
+    
+    # Spacing between grid points in physical units (microns)
+    spacing_x = camera.pixel_edges_x[end] / (grid_size + 1)
+    spacing_y = camera.pixel_edges_y[end] / (grid_size + 1)
+    
+    for i in 1:grid_size
+        for j in 1:grid_size
+            # Calculate position
+            x = i * spacing_x
+            y = j * spacing_y
+            
+            # Create emitter with varying photon counts
+            photons = 500.0 + 500.0 * ((i + j) / (2 * grid_size))
+            
+            emitter = SMLMData.Emitter2D(x, y, photons)
+            push!(emitters, emitter)
+        end
+    end
+    
+    # Create BasicSMLD object
+    smld = SMLMData.BasicSMLD(emitters, camera, 1, 1)
+    
+    return smld
 end
 
-# Render with higher contrast and increased photon values
-println("Rendering image with adjusted settings for better visibility...")
-img = render(smld; 
-    zoom=8,                      # Reduced zoom for larger blobs
-    contrast=(method=:linear, clip=0.5),
-    n_sigmas=6.0,                # Increased sigma to make blobs larger
-    normalization=:maximum       # Use maximum normalization for stronger signal
-)
-output_path = joinpath("dev", "output", "test_basic.png")
-save(output_path, img)
-println("Saved to $output_path")
+# Create test dataset
+println("Creating test grid...")
+smld = create_test_grid()
+println("Created $(length(smld.emitters)) emitters")
 
-# Also create a version with color to easily see the different emitters
-println("Creating colored version...")
-img_color = render(smld; 
-    zoom=8, 
-    color_by=:photons,           # Color by photon count
-    colormap=:plasma,            # Plasma colormap for good visibility
-    contrast=(method=:linear, clip=0.5),
-    n_sigmas=6.0,
-    normalization=:maximum
-)
-output_path_color = joinpath("dev", "output", "test_basic_color.png")
-save(output_path_color, img_color)
-println("Saved to $output_path_color")
+# Render with default settings
+println("Rendering with default settings...")
+img_default = render(smld)
+save("dev/output/grid_default.png", img_default)
+println("Saved to dev/output/grid_default.png")
 
-# Create a zoomed in version to better see the blobs
-println("Creating zoomed version...")
-img_zoom = render(smld; 
-    zoom=30, 
-    color_by=:photons,
-    colormap=:viridis,
-    contrast=(method=:linear, clip=0.5),
-    n_sigmas=6.0,
-    normalization=:maximum
-)
-output_path_zoom = joinpath("dev", "output", "test_basic_zoom.png")
-save(output_path_zoom, img_zoom)
-println("Saved to $output_path_zoom")
+# Render with zoom=5
+println("Rendering with zoom=5...")
+img_zoom5 = render(smld; zoom=5)
+save("dev/output/grid_zoom5.png", img_zoom5)
+println("Saved to dev/output/grid_zoom5.png")
 
-println("All tests completed successfully!")
+# Render with color by photons (should show a gradient)
+println("Rendering with coloring by photons...")
+img_photons = render(smld;
+    color_by=:photons,  # Color by photon count
+    colormap=:viridis,  # Use viridis colormap
+    contrast=(method=:linear, clip=0.999),  # Linear contrast
+    normalization=:maximum  # Maximum normalization
+)
+save("dev/output/grid_colored.png", img_photons)
+println("Saved to dev/output/grid_colored.png")
+
+println("All tests completed. Check the dev/output directory for results.")

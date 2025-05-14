@@ -7,32 +7,38 @@ This package provides tools for:
 1. Rendering localization data into images
 2. Interactive visualization of SMLM data (planned)
 3. Creating animations of SMLM data (planned)
-4. Converting between different file formats
 
-The main functionality is divided into several submodules:
-- `Render`: For rendering localization data into images
-- `MIC`: For handling MATLAB Instrument Control toolbox data
+The main functionality is provided by the Render module.
 """
 module SMLMVis
  
-# Include core modules
-include("video.jl")
-include("mic/MIC.jl")
+# Include only the render module for now
 include("render/Render.jl")
 
 # Required packages
 using Images
-using VideoIO
 
 # Export from Render module
 using SMLMVis.Render
 export render, render_2d, render_3d
 
-# Export from MIC module
-using SMLMVis.MIC
-export mic2mp4
+# Core functionality for SMLMVis module
 
-# Conditionally load extension modules if dependencies are available
-# This will be handled by Julia's extension mechanism
+"""
+    api_overview()
+
+Display an overview of the SMLMVis API.
+"""
+function api_overview()
+    println("SMLMVis API Overview:")
+    println("=====================")
+    println("Main rendering functions:")
+    println("  render(smld; zoom=20, color_by=nothing, colormap=:inferno, ...)")
+    println("  render_2d(smld; ...)")
+    println("  render_3d(smld; color_by=:z, ...)")
+    println("\nFor more details, see the documentation.")
+end
+
+export api_overview
 
 end

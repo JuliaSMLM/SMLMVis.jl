@@ -155,8 +155,11 @@ Convert an RGB image to a format suitable for display or saving (8-bit RGB).
 - `Array{RGB{N0f8},2}`: The converted 8-bit RGB image
 """
 function convert_to_image(rgb_image::Array{RGB{T},2}) where T <: Real
-    # Convert to 8-bit RGB format (N0f8) - values will be clamped to 0-1 range
-    return RGB{N0f8}.(rgb_image)
+    # Ensure all RGB values are in 0-1 range before converting to N0f8
+    rgb_clamped = clamp.(rgb_image, 0.0, 1.0)
+    
+    # Convert to 8-bit RGB format (N0f8)
+    return RGB{N0f8}.(rgb_clamped)
 end
 
 """
@@ -255,27 +258,49 @@ function adjust_coordinates(x::AbstractVector{<:Real},
     width = x_range[2] - x_range[1] + 1
     height = y_range[2] - y_range[1] + 1
     
-    # For typical small ROIs, we want to scale and center the data
-    # But for large images with camera data, use direct mapping
-    if length(x) <= 5 || isnothing(smld) || !isdefined(smld, :camera) || isnothing(smld.camera)
-        # Calculate the centers for small datasets
-        center_img_x = (x_range[1] + x_range[2]) / 2
-        center_img_y = (y_range[1] + y_range[2]) / 2
-        center_data_x = mean(pixel_x)
-        center_data_y = mean(pixel_y)
+    # For camera-based data, we should map directly to the camera coordinates
+    if !isnothing(smld) && isdefined(smld, :camera) && !isnothing(smld.camera) &&
+       isdefined(smld.camera, :pixel_edges_x) && isdefined(smld.camera, :pixel_edges_y)
         
-        # Find data bounds in pixels
+        # Get camera dimensions from pixel edges
+        camera_width = length(smld.camera.pixel_edges_x) - 1
+        camera_height = length(smld.camera.pixel_edges_y) - 1
+        output_width = x_range[2] - x_range[1] + 1
+        output_height = y_range[2] - y_range[1] + 1
+        
+        # Calculate scale factor from camera to output dimensions
+        scale_x = output_width / camera_width
+        scale_y = output_height / camera_height
+        
+        # Direct mapping with stretching to fill the output area
+        # We use a direct linear mapping from camera pixel coordinates to output coordinates
+        adjusted_x = x_range[1] .+ (pixel_x .- 1.0) .* scale_x
+        adjusted_y = y_range[1] .+ (pixel_y .- 1.0) .* scale_y
+        
+        @info "Using direct camera mapping, scales: $scale_x, $scale_y"
+    else
+        # For non-camera data, use centered scaling with minimal margins
         min_x, max_x = extrema(pixel_x)
         min_y, max_y = extrema(pixel_y)
         data_width = max_x - min_x
         data_height = max_y - min_y
         
-        # Calculate scaling to fit in the visible area with margin
-        margin = 0.2  # 20% margin on each side
-        margin_px_x = width * margin
-        margin_px_y = height * margin
-        visible_width = width - 2 * margin_px_x
-        visible_height = height - 2 * margin_px_y
+        # Calculate the image center and dimensions
+        center_img_x = (x_range[1] + x_range[2]) / 2
+        center_img_y = (y_range[1] + y_range[2]) / 2
+        img_width = x_range[2] - x_range[1] + 1
+        img_height = y_range[2] - y_range[1] + 1
+        
+        # Calculate the data center
+        center_data_x = (min_x + max_x) / 2
+        center_data_y = (min_y + max_y) / 2
+        
+        # Calculate scaling to fill image with minimal margin
+        margin = 0.01  # 1% margin on each side
+        margin_px_x = img_width * margin
+        margin_px_y = img_height * margin
+        visible_width = img_width - 2 * margin_px_x
+        visible_height = img_height - 2 * margin_px_y
         
         # Calculate scale factor (use smaller to maintain aspect ratio)
         scale_x = visible_width / max(data_width, 1.0)
@@ -286,15 +311,10 @@ function adjust_coordinates(x::AbstractVector{<:Real},
         adjusted_x = center_img_x .+ (pixel_x .- center_data_x) .* scale
         adjusted_y = center_img_y .+ (pixel_y .- center_data_y) .* scale
         
-        @info "Using small dataset centering approach"
-    else
-        # For camera data with many points, we need direct pixel mapping
-        # Keep the original pixel coordinates but clamp to image bounds
-        adjusted_x = clamp.(pixel_x, x_range[1], x_range[2])
-        adjusted_y = clamp.(pixel_y, y_range[1], y_range[2])
-        
-        @info "Using direct coordinate mapping for camera data"
+        @info "Using centered scaling with minimal margins: scale=$scale"
     end
+    
+    # Debug info was already output in each branch
     
     # Debug output
     # Print a sample of coordinates for debugging
