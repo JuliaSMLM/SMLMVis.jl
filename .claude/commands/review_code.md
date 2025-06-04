@@ -4,7 +4,7 @@ Please perform a comprehensive review of this Julia code base. Your review shoul
 
 ## 1. File and Type Hierarchy Analysis
 * Provide a detailed breakdown of the project's file structure.
-* Visualize the type hierarchy and module relationships, highlighting inter-dependencies and organization. (Use CairoMakie to generate any necessary plots or diagrams.)
+* Visualize the type hierarchy and module relationships, highlighting inter-dependencies and organization. 
 * Identify any circular dependencies or organizational inconsistencies.
 
 ## 2. Workflow Explanation for Common Use Cases
@@ -50,4 +50,4 @@ Please perform a comprehensive review of this Julia code base. Your review shoul
 * Highlight positive aspects and strengths of the current codebase
 * Identify well-designed components that could serve as examples for other parts of the code
 
-Throughout your review, please include concrete code examples and illustrative visualizations (using CairoMakie) where beneficial. Your feedback should not only critique but also provide actionable recommendations to enhance code clarity, maintainability, and performance.
+Throughout your review, please include concrete code examples where beneficial. Your feedback should not only critique but also provide actionable recommendations to enhance code clarity, maintainability, and performance.
