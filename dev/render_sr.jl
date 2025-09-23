@@ -34,3 +34,5 @@ srimg1 = float.(srimg1./ Imax);
 colored_img = map(x -> get(ColorSchemes.inferno, x), srimg1)
 save(datapath*dataname*"_SRimg.png",colored_img)
 
+# closing h5 file; maybe useful (not sure)
+close(f)
