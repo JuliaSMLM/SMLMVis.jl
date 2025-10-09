@@ -20,21 +20,25 @@ Convert data to UInt8 for efficient display, applying contrast and clipping.
 """
 function convert_to_uint8(data::AbstractArray{T};
                           clip::Tuple{Float64,Float64}=(0.001, 0.999),
+                          clip_values::Union{Nothing,Tuple{Float64,Float64}}=nothing,
                           contrast::Symbol=:linear) where T
     # Handle empty or invalid data
     if isempty(data) || all(isnan, data)
         return zeros(UInt8, size(data))
     end
 
-    # Filter out NaN and Inf
-    valid_data = filter(x -> isfinite(x), vec(data))
-    if isempty(valid_data)
-        return zeros(UInt8, size(data))
+    # Determine clipping bounds
+    min_val, max_val = if !isnothing(clip_values)
+        # Use pre-computed min/max values
+        clip_values
+    else
+        # Calculate percentile clipping bounds
+        valid_data = filter(x -> isfinite(x), vec(data))
+        if isempty(valid_data)
+            return zeros(UInt8, size(data))
+        end
+        (quantile(valid_data, clip[1]), quantile(valid_data, clip[2]))
     end
-
-    # Calculate percentile clipping bounds
-    min_val = quantile(valid_data, clip[1])
-    max_val = quantile(valid_data, clip[2])
 
     # Avoid division by zero
     if min_val == max_val
@@ -189,14 +193,14 @@ function _stack_viewer_impl(
         slice_data = get_slice(data, current_slice[], current_frame[])
 
         # Determine clip values based on stretch mode
-        clip_to_use = clip
+        clip_vals = nothing
         if current_stretch[] == :slice
             # Per-slice stretching: recalculate percentiles for this slice
             valid_data = filter(isfinite, vec(slice_data))
             if !isempty(valid_data)
                 min_clip = quantile(valid_data, clip[1])
                 max_clip = quantile(valid_data, clip[2])
-                clip_to_use = (min_clip, max_clip)
+                clip_vals = (min_clip, max_clip)
             end
         else
             # Global stretching: use cached values
@@ -207,14 +211,14 @@ function _stack_viewer_impl(
                     min_clip = quantile(all_valid, clip[1])
                     max_clip = quantile(all_valid, clip[2])
                     global_clip_values[] = (min_clip, max_clip)
-                    clip_to_use = global_clip_values[]
+                    clip_vals = global_clip_values[]
                 end
             else
-                clip_to_use = global_clip_values[]
+                clip_vals = global_clip_values[]
             end
         end
 
-        uint8_data = convert_to_uint8(slice_data; clip=clip_to_use, contrast=current_contrast[])
+        uint8_data = convert_to_uint8(slice_data; clip=clip, clip_values=clip_vals, contrast=current_contrast[])
         return uint8_data
     end
 
