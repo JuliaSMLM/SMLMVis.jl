@@ -268,25 +268,18 @@ function SMLMVis.Interact.stack_viewer(
         end
     end
 
-    # Display the figure - WGLMakie will open in browser
+    # Return the figure without explicit display()
+    # In REPL/IJulia/Pluto: The figure will auto-display
+    # In scripts: Caller must explicitly call display(fig)
+    # This avoids hanging in non-interactive contexts
+
     println("\n" * "="^80)
-    println("WGLMakie Viewer (WebGL - for remote/headless systems)")
+    println("WGLMakie Viewer Created")
     println("="^80)
-    println("Opening viewer in browser...")
-
-    # Get the server port from environment or use default
-    port = get(ENV, "WGLMAKIE_PORT", "9284")
-    println("Server URL: http://localhost:$port")
-    println("\nIf on remote server, use SSH port forwarding:")
-    println("  ssh -L $port:localhost:$port user@server")
-    println("Then open: http://localhost:$port in your local browser")
-    println("\nPress Ctrl+C to exit")
+    println("Figure ready for display")
+    println("  In REPL: Will auto-display in plot pane")
+    println("  In script: Call display(fig) manually")
     println("="^80 * "\n")
-
-    # Display the figure
-    # In VSCode, this will open in the plot pane
-    # The server will stay alive as long as the script is running
-    display(fig)
 
     return fig
 end

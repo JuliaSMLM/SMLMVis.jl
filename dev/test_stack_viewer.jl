@@ -1,11 +1,18 @@
 # test_stack_viewer.jl
-# Test script for interactive stack viewer development
-# Run with: julia dev/test_stack_viewer.jl (or press Run in VSCode)
+# Interactive stack viewer test data generator
 #
-# Options:
-#   BACKEND=WGL julia dev/test_stack_viewer.jl  # Use WGLMakie (remote/headless)
-#   BACKEND=GL julia dev/test_stack_viewer.jl   # Use GLMakie (default)
-#   TEST=2 julia dev/test_stack_viewer.jl       # Run specific test (1-6)
+# IMPORTANT: WGLMakie requires Julia REPL, NOT script execution!
+#
+# Usage:
+#   1. Run this script ONCE to generate test data:
+#      julia> include("dev/test_stack_viewer.jl")
+#
+#   2. Then launch viewer in REPL:
+#      julia> using WGLMakie
+#      julia> stack_viewer(data_3d_spots)
+#
+# For GLMakie (requires DISPLAY/X11):
+#   BACKEND=GL julia dev/test_stack_viewer.jl
 
 using Pkg
 Pkg.activate("dev")
@@ -26,23 +33,12 @@ function detect_backend()
         if haskey(ENV, "DISPLAY") && !isempty(ENV["DISPLAY"])
             return "GL"  # Can use GLMakie with display
         else
-            # Headless/SSH: WGLMakie only works in REPL, not scripts
-            println("⚠ ERROR: Headless environment detected (no DISPLAY)")
-            println("  ")
-            println("  stack_viewer requires interactive environment!")
-            println("  ")
-            println("  Solutions:")
-            println("  1. Use Julia REPL instead of running script:")
-            println("     julia> using WGLMakie")
-            println("     julia> using SMLMVis.Interact")
-            println("     julia> stack_viewer(data)")
-            println("     (WGLMakie will open in VSCode plot pane)")
-            println("  ")
-            println("  2. Or install GLMakie and set up X11 forwarding:")
-            println("     ssh -X user@server")
-            println("     BACKEND=GL julia dev/test_stack_viewer.jl")
-            println("  ")
-            error("Cannot run interactive viewer from headless script")
+            # Headless/SSH: Default to WGLMakie for VSCode/Jupyter
+            # User can override if needed
+            println("⚠ Note: Headless environment detected (no DISPLAY)")
+            println("  Defaulting to WGLMakie (for VSCode plot pane)")
+            println("  Set BACKEND=GL if you have X11 forwarding")
+            return "WGL"
         end
     elseif Sys.iswindows() || Sys.isapple()
         return "GL"  # Desktop systems default to GLMakie
@@ -56,7 +52,7 @@ println("✓ Using backend: $(backend)Makie")
 
 if backend == "WGL"
     using WGLMakie
-    # Note: WGLMakie display() only works in interactive environments (REPL, Jupyter)
+    # Bonito will auto-configure when needed in REPL
 elseif backend == "GL"
     using GLMakie
 elseif backend == "CAIRO"
@@ -351,12 +347,29 @@ else
     exit(1)
 end
 
-println("\n✓ Viewer launched!")
-if backend == "WGL"
-    println("  Open: http://localhost:$port")
-    println("  Forward port in VSCode PORTS tab or SSH")
-    println("\n  Keeping script alive to serve webpage...")
-    println("  Press Ctrl+C to exit")
+println("\n✓ Viewer created!")
+
+# Display the figure
+# In REPL: This will open in VSCode plot pane automatically
+# In script: Skip display to avoid hanging
+if isinteractive()
+    println("  Interactive REPL detected - displaying figure...")
+    display(fig)
+    println("  ✓ Figure should appear in plot pane")
+else
+    println("  ⚠ Non-interactive script mode - skipping auto-display")
+    println("  ")
+    println("  To view the figure, use Julia REPL instead:")
+    println("    julia> include(\"dev/test_stack_viewer.jl\")")
+    println("    julia> fig  # Auto-displays in REPL")
+    println("  ")
+    println("  Figure stored in variable: fig")
+end
+
+if backend == "WGL" && isinteractive()
+    # Only keep alive in interactive mode
+    println("\n  WGLMakie server running")
+    println("  Keeping script alive... Press Ctrl+C to exit")
 
     # Keep script alive to serve WGLMakie content
     try
@@ -370,9 +383,6 @@ if backend == "WGL"
             rethrow(e)
         end
     end
-else
-    # GLMakie doesn't need the script to stay alive
-    println("\nUsage examples:")
-    println("  TEST=3 julia dev/test_stack_viewer.jl       # Run test 3")
-    println("  BACKEND=WGL julia dev/test_stack_viewer.jl  # Force WGLMakie")
+elseif backend == "WGL" && !isinteractive()
+    println("\n✓ Script complete. Use include() from REPL to view figure.")
 end
