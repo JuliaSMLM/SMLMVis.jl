@@ -1,12 +1,75 @@
 # test_stack_viewer.jl
 # Test script for interactive stack viewer development
 # Run with: julia dev/test_stack_viewer.jl (or press Run in VSCode)
+#
+# Options:
+#   BACKEND=WGL julia dev/test_stack_viewer.jl  # Use WGLMakie (remote/headless)
+#   BACKEND=GL julia dev/test_stack_viewer.jl   # Use GLMakie (default)
+#   TEST=2 julia dev/test_stack_viewer.jl       # Run specific test (1-6)
 
 using Pkg
 Pkg.activate("dev")
 
+# Smart backend detection
+function detect_backend()
+    # If BACKEND env var is explicitly set, use that
+    if haskey(ENV, "BACKEND")
+        backend = uppercase(ENV["BACKEND"])
+        if backend in ["GL", "WGL", "CAIRO"]
+            return backend
+        end
+    end
+
+    # Auto-detect based on environment
+    if Sys.islinux()
+        # Check if DISPLAY is set (X11/Wayland available)
+        if haskey(ENV, "DISPLAY") && !isempty(ENV["DISPLAY"])
+            return "GL"  # Can use GLMakie with display
+        else
+            # Headless/SSH: WGLMakie only works in REPL, not scripts
+            println("⚠ ERROR: Headless environment detected (no DISPLAY)")
+            println("  ")
+            println("  stack_viewer requires interactive environment!")
+            println("  ")
+            println("  Solutions:")
+            println("  1. Use Julia REPL instead of running script:")
+            println("     julia> using WGLMakie")
+            println("     julia> using SMLMVis.Interact")
+            println("     julia> stack_viewer(data)")
+            println("     (WGLMakie will open in VSCode plot pane)")
+            println("  ")
+            println("  2. Or install GLMakie and set up X11 forwarding:")
+            println("     ssh -X user@server")
+            println("     BACKEND=GL julia dev/test_stack_viewer.jl")
+            println("  ")
+            error("Cannot run interactive viewer from headless script")
+        end
+    elseif Sys.iswindows() || Sys.isapple()
+        return "GL"  # Desktop systems default to GLMakie
+    else
+        return "CAIRO"  # Unknown platform, use static rendering
+    end
+end
+
+backend = detect_backend()
+println("✓ Using backend: $(backend)Makie")
+
+if backend == "WGL"
+    using WGLMakie
+    # Note: WGLMakie display() only works in interactive environments (REPL, Jupyter)
+elseif backend == "GL"
+    using GLMakie
+elseif backend == "CAIRO"
+    # CairoMakie is already loaded as a strong dependency
+    # It doesn't have an interactive viewer, but can save to files
+    println("  Note: CairoMakie doesn't have interactive viewer")
+    println("  Viewer will display but not be interactive")
+end
+
 using SMLMVis
 using SMLMVis.Interact
+
+println("✓ Using $(backend)Makie backend")
 
 """
 Generate synthetic test data with various features for testing the viewer.
@@ -224,7 +287,8 @@ println("  Range: $(extrema(data_4d_wave))")
 
 # Test 6: High dynamic range data
 println("\n[Test 6] High Dynamic Range (16-bit simulation)")
-data_hdr = UInt16.(generate_test_stack(width=256, height=256, nslices=40, ndims_out=3, pattern=:spots) .* 10000)
+data_float = generate_test_stack(width=256, height=256, nslices=40, ndims_out=3, pattern=:spots)
+data_hdr = UInt16.(round.(clamp.(data_float .* 10000, 0, 65535)))  # Round and clamp to UInt16 range
 println("  Generated: $(size(data_hdr)), $(eltype(data_hdr))")
 println("  Range: $(extrema(data_hdr))")
 # stack_viewer(data_hdr;
@@ -235,9 +299,80 @@ println("  Range: $(extrema(data_hdr))")
 
 println("\n" * "="^80)
 println("Test data generated successfully!")
-println("Uncomment stack_viewer() calls to test interactively")
 println("="^80)
 
-# Quick interactive test - uncomment to run
-# println("\nLaunching test viewer with 3D spots...")
-# stack_viewer(data_3d_spots; title="3D Spots Test", pixel_size=0.1, z_step=0.2)
+# Run a test interactively
+test_num = parse(Int, get(ENV, "TEST", "2"))  # Default to test 2 (3D spots)
+
+if test_num == 1
+    println("\n→ Launching Test 1: 2D Gradient")
+    fig = stack_viewer(data_2d; title="Test 1: 2D Gradient")
+
+elseif test_num == 2
+    println("\n→ Launching Test 2: 3D Spots (default)")
+    println("  Calling stack_viewer..."); flush(stdout)
+    fig = stack_viewer(data_3d_spots;
+        title="Test 2: 3D Spots",
+        pixel_size=0.1,
+        z_step=0.2
+    )
+    println("  stack_viewer returned!"); flush(stdout)
+
+elseif test_num == 3
+    println("\n→ Launching Test 3: 3D Rings")
+    fig = stack_viewer(data_3d_rings;
+        title="Test 3: 3D Rings"
+    )
+
+elseif test_num == 4
+    println("\n→ Launching Test 4: 4D Spots (Z+T)")
+    println("  Note: 4D not yet implemented, showing first timepoint")
+    fig = stack_viewer(data_4d_spots[:,:,:,1];
+        title="Test 4: 4D Spots (t=1)"
+    )
+
+elseif test_num == 5
+    println("\n→ Launching Test 5: 4D Wave (Z+T)")
+    println("  Note: 4D not yet implemented, showing first timepoint")
+    fig = stack_viewer(data_4d_wave[:,:,:,1];
+        title="Test 5: 4D Wave (t=1)"
+    )
+
+elseif test_num == 6
+    println("\n→ Launching Test 6: HDR Data")
+    fig = stack_viewer(data_hdr;
+        title="Test 6: HDR Data",
+        clip=(0.01, 0.99)
+    )
+
+else
+    println("\n✗ Invalid TEST=$test_num (use 1-6)")
+    println("  Default: TEST=2 (3D Spots)")
+    exit(1)
+end
+
+println("\n✓ Viewer launched!")
+if backend == "WGL"
+    println("  Open: http://localhost:$port")
+    println("  Forward port in VSCode PORTS tab or SSH")
+    println("\n  Keeping script alive to serve webpage...")
+    println("  Press Ctrl+C to exit")
+
+    # Keep script alive to serve WGLMakie content
+    try
+        while true
+            sleep(1)
+        end
+    catch e
+        if isa(e, InterruptException)
+            println("\n✓ Shutting down server...")
+        else
+            rethrow(e)
+        end
+    end
+else
+    # GLMakie doesn't need the script to stay alive
+    println("\nUsage examples:")
+    println("  TEST=3 julia dev/test_stack_viewer.jl       # Run test 3")
+    println("  BACKEND=WGL julia dev/test_stack_viewer.jl  # Force WGLMakie")
+end

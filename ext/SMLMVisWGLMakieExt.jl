@@ -273,12 +273,19 @@ function SMLMVis.Interact.stack_viewer(
     println("WGLMakie Viewer (WebGL - for remote/headless systems)")
     println("="^80)
     println("Opening viewer in browser...")
-    println("Default URL: http://localhost:9284")
+
+    # Get the server port from environment or use default
+    port = get(ENV, "WGLMAKIE_PORT", "9284")
+    println("Server URL: http://localhost:$port")
     println("\nIf on remote server, use SSH port forwarding:")
-    println("  ssh -L 9284:localhost:9284 user@server")
-    println("Then open: http://localhost:9284 in your local browser")
+    println("  ssh -L $port:localhost:$port user@server")
+    println("Then open: http://localhost:$port in your local browser")
+    println("\nPress Ctrl+C to exit")
     println("="^80 * "\n")
 
+    # Display the figure
+    # In VSCode, this will open in the plot pane
+    # The server will stay alive as long as the script is running
     display(fig)
 
     return fig
