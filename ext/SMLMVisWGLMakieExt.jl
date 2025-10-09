@@ -170,8 +170,10 @@ function _stack_viewer_impl(
     # Create figure with size based on data dimensions
     # Scale to make image visible but not too large
     scale_factor = min(800 / max(width, height), 4.0)  # Max 4x upscale, max 800px
-    fig_width = Int(round(width * scale_factor + 100))   # Add padding for controls
-    fig_height = Int(round(height * scale_factor + 200)) # Add padding for title/sliders/status
+    img_width = Int(round(width * scale_factor))
+    img_height = Int(round(height * scale_factor))
+    fig_width = img_width + 100   # Add padding for controls
+    fig_height = img_height + 200 # Add padding for title/sliders/status
     fig = Figure(size=(max(fig_width, 400), max(fig_height, 500)))
 
     # Create main layout
@@ -180,9 +182,11 @@ function _stack_viewer_impl(
     # Title
     Label(main_layout[1, 1], title, fontsize=16, halign=:left)
 
-    # Main image axis
+    # Main image axis - explicitly size it to our scaled dimensions
     ax = Axis(main_layout[2, 1],
              aspect=DataAspect(),
+             width=img_width,
+             height=img_height,
              title="",
              xlabel="",
              ylabel="")
