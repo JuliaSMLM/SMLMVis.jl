@@ -102,9 +102,12 @@ end
 # ============================================================================
 
 """
-    stack_viewer(data::AbstractArray; kwargs...)
+    _stack_viewer_impl(data::AbstractArray; kwargs...)
 
-Interactive viewer for multidimensional image stacks (1D-4D).
+GLMakie implementation of the interactive stack viewer.
+
+This function is registered with SMLMVis.Interact and called via the main
+stack_viewer() dispatch system. Not intended to be called directly.
 
 # Phase 1 MVP Features:
 - 2D/3D display with Z-slider
@@ -115,7 +118,6 @@ Interactive viewer for multidimensional image stacks (1D-4D).
 
 # Arguments
 - `data`: 1D-4D array of image data
-- `backend`: `:auto`, `:GLMakie`, or `:WGLMakie` (Phase 1: GLMakie only)
 - `contrast`: Contrast method (Phase 1: :linear only)
 - `clip`: Percentile clipping tuple (default: (0.001, 0.999))
 - `zoom`: Initial zoom factor (default: 1.0)
@@ -128,9 +130,8 @@ Interactive viewer for multidimensional image stacks (1D-4D).
 - `i`/`o`: Zoom in/out
 - `q`: Quit viewer
 """
-function SMLMVis.Interact.stack_viewer(
+function _stack_viewer_impl(
     data::AbstractArray;
-    backend::Symbol=:auto,
     contrast::Symbol=:linear,
     clip::Tuple{Float64,Float64}=(0.001, 0.999),
     zoom::Real=1.0,
@@ -270,9 +271,7 @@ function SMLMVis.Interact.stack_viewer(
         end
     end
 
-    # Display the figure
-    display(fig)
-
+    # Return figure without display (KISS/DRY - let caller handle display)
     return fig
 end
 
@@ -287,5 +286,16 @@ end
 # - render_projection: Projection rendering
 # - animate_time_series: Time series animations
 # - animate_acquisition: Acquisition animations
+
+# ============================================================================
+# Extension Initialization
+# ============================================================================
+
+"""
+Register GLMakie backend when extension loads.
+"""
+function __init__()
+    SMLMVis.Interact.register_backend!(:GLMakie, _stack_viewer_impl)
+end
 
 end # module SMLMVisGLMakieExt

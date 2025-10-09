@@ -1,56 +1,37 @@
 # test_stack_viewer.jl
-# Interactive stack viewer test data generator
+# Interactive stack viewer test with automatic backend detection
 #
-# IMPORTANT: WGLMakie requires Julia REPL, NOT script execution!
+# The viewer now auto-detects the best backend for your environment!
 #
 # Usage:
-#   1. Run this script ONCE to generate test data:
-#      julia> include("dev/test_stack_viewer.jl")
+#   julia> include("dev/test_stack_viewer.jl")
 #
-#   2. Then launch viewer in REPL:
-#      julia> using WGLMakie
-#      julia> stack_viewer(data_3d_spots)
+# The package will automatically:
+# - Detect your environment (SSH, headless, desktop, notebook)
+# - Select the appropriate backend (GLMakie or WGLMakie)
+# - Provide helpful errors if no backend is installed
 #
-# For GLMakie (requires DISPLAY/X11):
-#   BACKEND=GL julia dev/test_stack_viewer.jl
+# To check backend status before running:
+#   julia> using SMLMVis.Interact
+#   julia> backend_info()
 
 using Pkg
 Pkg.activate("dev")
 
-# Smart backend detection
-function detect_backend()
-    # Auto-detect based on environment
-    if Sys.islinux()
-        # Default to WGLMakie on Linux (works in VSCode, Jupyter, etc.)
-        println("⚠ Note: Using WGLMakie (for VSCode/Jupyter)")
-        println("  Works in VSCode plot pane, Jupyter, Pluto")
-        return "WGL"
-    elseif Sys.iswindows() || Sys.isapple()
-        return "GL"  # Desktop systems default to GLMakie
-    else
-        return "CAIRO"  # Unknown platform, use static rendering
-    end
-end
-
-backend = detect_backend()
-println("✓ Using backend: $(backend)Makie")
-
-if backend == "WGL"
-    using WGLMakie
-    # Bonito will auto-configure when needed in REPL
-elseif backend == "GL"
-    using GLMakie
-elseif backend == "CAIRO"
-    # CairoMakie is already loaded as a strong dependency
-    # It doesn't have an interactive viewer, but can save to files
-    println("  Note: CairoMakie doesn't have interactive viewer")
-    println("  Viewer will display but not be interactive")
-end
+# Load a Makie backend (or let it auto-detect if you already loaded one)
+# Uncomment ONE of these lines to explicitly choose a backend:
+# using GLMakie   # For local desktop with display
+using WGLMakie  # For remote/SSH/headless (works in VSCode plot pane)
 
 using SMLMVis
 using SMLMVis.Interact
 
-println("✓ Using $(backend)Makie backend")
+# Check backend status
+println("="^80)
+println("Backend Detection Status")
+println("="^80)
+backend_info()
+println()
 
 """
 Generate synthetic test data with various features for testing the viewer.
@@ -335,41 +316,39 @@ else
 end
 
 println("\n✓ Viewer created!")
+println("  Figure returned by stack_viewer()")
+println("  Backend used: $(SMLMVis.Interact.detect_best_backend())")
+println()
 
-# Display the figure
-# In REPL: This will open in VSCode plot pane automatically
-# In script: Skip display to avoid hanging
+# Note about display behavior
+println("Display behavior:")
+println("  In REPL: Figure will auto-display when you type 'fig' and press Enter")
+println("  In script: Call display(fig) explicitly if needed")
+println("  In VSCode plot pane: Should auto-display for WGLMakie")
+println()
+
+# Explicitly display if in interactive mode
 if isinteractive()
-    println("  Interactive REPL detected - displaying figure...")
+    println("  Interactive session detected - calling display(fig)...")
     display(fig)
-    println("  ✓ Figure should appear in plot pane")
-else
-    println("  ⚠ Non-interactive script mode - skipping auto-display")
-    println("  ")
-    println("  To view the figure, use Julia REPL instead:")
-    println("    julia> include(\"dev/test_stack_viewer.jl\")")
-    println("    julia> fig  # Auto-displays in REPL")
-    println("  ")
-    println("  Figure stored in variable: fig")
-end
+    println("  ✓ Figure displayed")
+    println()
+    println("  Note: For WGLMakie, you may need to wait a moment for the plot pane to open")
+    println("  Press Ctrl+C to exit when done viewing")
 
-if backend == "WGL" && isinteractive()
-    # Only keep alive in interactive mode
-    println("\n  WGLMakie server running")
-    println("  Keeping script alive... Press Ctrl+C to exit")
-
-    # Keep script alive to serve WGLMakie content
+    # Keep script alive if needed (e.g., for WGLMakie server)
     try
         while true
             sleep(1)
         end
     catch e
         if isa(e, InterruptException)
-            println("\n✓ Shutting down server...")
+            println("\n✓ Shutting down...")
         else
             rethrow(e)
         end
     end
-elseif backend == "WGL" && !isinteractive()
-    println("\n✓ Script complete. Use include() from REPL to view figure.")
+else
+    println("  Non-interactive mode - figure stored in variable 'fig'")
+    println("  To view: display(fig)")
 end
