@@ -178,11 +178,43 @@ function _stack_viewer_impl(
     current_slice = Observable(1)
     current_frame = Observable(1)
     zoom_level = Observable(Float64(zoom))
+    current_contrast = Observable(contrast)  # Phase 2: Dynamic contrast
+    current_stretch = Observable(:global)     # Phase 2: :global or :slice
 
-    # Convert and display first slice
+    # Cache for global contrast values (computed once)
+    global_clip_values = Ref{Union{Nothing, Tuple{Float64,Float64}}}(nothing)
+
+    # Convert and display current slice with current settings
     function update_display()
         slice_data = get_slice(data, current_slice[], current_frame[])
-        uint8_data = convert_to_uint8(slice_data; clip=clip, contrast=contrast)
+
+        # Determine clip values based on stretch mode
+        clip_to_use = clip
+        if current_stretch[] == :slice
+            # Per-slice stretching: recalculate percentiles for this slice
+            valid_data = filter(isfinite, vec(slice_data))
+            if !isempty(valid_data)
+                min_clip = quantile(valid_data, clip[1])
+                max_clip = quantile(valid_data, clip[2])
+                clip_to_use = (min_clip, max_clip)
+            end
+        else
+            # Global stretching: use cached values
+            if isnothing(global_clip_values[])
+                # Calculate once for all slices
+                all_valid = filter(isfinite, vec(data))
+                if !isempty(all_valid)
+                    min_clip = quantile(all_valid, clip[1])
+                    max_clip = quantile(all_valid, clip[2])
+                    global_clip_values[] = (min_clip, max_clip)
+                    clip_to_use = global_clip_values[]
+                end
+            else
+                clip_to_use = global_clip_values[]
+            end
+        end
+
+        uint8_data = convert_to_uint8(slice_data; clip=clip_to_use, contrast=current_contrast[])
         return uint8_data
     end
 
@@ -208,20 +240,53 @@ function _stack_viewer_impl(
         end
     end
 
-    # T-slider (only if 4D) - Phase 2 feature, placeholder for now
+    # T-slider (only if 4D)
+    sl_t = nothing
+    status_row = 4
     if nframes > 1
-        @warn "4D data detected. Time navigation will be added in Phase 2"
+        sl_t = Slider(main_layout[4, 1], range=1:nframes, startvalue=1)
+        Label(main_layout[4, 2], @lift("Frame: $($(sl_t.value))/$nframes"), width=120)
+
+        # Connect slider to update heatmap
+        on(sl_t.value) do val
+            current_frame[] = val
+            hm[3][] = update_display()  # Update heatmap data
+        end
+        status_row = 5
     end
 
-    # Status bar
-    help_text = "n/p: Navigate  i/o: Zoom  q: Quit"
-    Label(main_layout[4, 1:2], help_text, fontsize=12, halign=:left)
+    # Status bar with dynamic mode display
+    status_text = @lift("Contrast: $($(current_contrast))  Stretch: $($(current_stretch))  |  n/p/↑↓: Navigate  f/b: Time  i/o: Zoom  c: Contrast  s: Stretch  q: Quit")
+    Label(main_layout[status_row, 1:2], status_text, fontsize=12, halign=:left)
+
+    # Mouse scroll navigation for Z-axis
+    on(events(fig).scroll) do (dx, dy)
+        if nslices > 1
+            if dy > 0  # Scroll up - previous slice
+                if current_slice[] > 1
+                    current_slice[] -= 1
+                    if !isnothing(sl_z)
+                        sl_z.value[] = current_slice[]
+                    end
+                    hm[3][] = update_display()
+                end
+            elseif dy < 0  # Scroll down - next slice
+                if current_slice[] < nslices
+                    current_slice[] += 1
+                    if !isnothing(sl_z)
+                        sl_z.value[] = current_slice[]
+                    end
+                    hm[3][] = update_display()
+                end
+            end
+        end
+    end
 
     # Keyboard controls
     on(events(fig).keyboardbutton) do event
         if event.action == Keyboard.press || event.action == Keyboard.repeat
-            if event.key == Keyboard.n
-                # Next slice
+            if event.key == Keyboard.n || event.key == Keyboard.down
+                # Next slice (n or Down arrow)
                 if nslices > 1 && current_slice[] < nslices
                     current_slice[] += 1
                     if !isnothing(sl_z)
@@ -229,8 +294,8 @@ function _stack_viewer_impl(
                     end
                     hm[3][] = update_display()  # Update heatmap data
                 end
-            elseif event.key == Keyboard.p
-                # Previous slice
+            elseif event.key == Keyboard.p || event.key == Keyboard.up
+                # Previous slice (p or Up arrow)
                 if nslices > 1 && current_slice[] > 1
                     current_slice[] -= 1
                     if !isnothing(sl_z)
@@ -260,6 +325,57 @@ function _stack_viewer_impl(
                     ylims = (height/2 - height/(2*zoom_level[]), height/2 + height/(2*zoom_level[]))
                     xlims!(ax, xlims...)
                     ylims!(ax, ylims...)
+                end
+            elseif event.key == Keyboard.home
+                # Jump to first slice
+                if nslices > 1 && current_slice[] != 1
+                    current_slice[] = 1
+                    if !isnothing(sl_z)
+                        sl_z.value[] = current_slice[]
+                    end
+                    hm[3][] = update_display()  # Update heatmap data
+                end
+            elseif event.key == Keyboard._end
+                # Jump to last slice
+                if nslices > 1 && current_slice[] != nslices
+                    current_slice[] = nslices
+                    if !isnothing(sl_z)
+                        sl_z.value[] = current_slice[]
+                    end
+                    hm[3][] = update_display()  # Update heatmap data
+                end
+            elseif event.key == Keyboard.c
+                # Cycle contrast method: linear → log → sqrt → equalize → linear
+                contrast_methods = [:linear, :log, :sqrt, :equalize]
+                current_idx = findfirst(==(current_contrast[]), contrast_methods)
+                next_idx = current_idx == length(contrast_methods) ? 1 : current_idx + 1
+                current_contrast[] = contrast_methods[next_idx]
+                hm[3][] = update_display()  # Update display with new contrast
+            elseif event.key == Keyboard.s
+                # Toggle stretch mode: global ↔ slice
+                if current_stretch[] == :global
+                    current_stretch[] = :slice
+                else
+                    current_stretch[] = :global
+                end
+                hm[3][] = update_display()  # Update display with new stretch mode
+            elseif event.key == Keyboard.f
+                # Forward in time (next frame)
+                if nframes > 1 && current_frame[] < nframes
+                    current_frame[] += 1
+                    if !isnothing(sl_t)
+                        sl_t.value[] = current_frame[]
+                    end
+                    hm[3][] = update_display()  # Update heatmap data
+                end
+            elseif event.key == Keyboard.b
+                # Backward in time (previous frame)
+                if nframes > 1 && current_frame[] > 1
+                    current_frame[] -= 1
+                    if !isnothing(sl_t)
+                        sl_t.value[] = current_frame[]
+                    end
+                    hm[3][] = update_display()  # Update heatmap data
                 end
             elseif event.key == Keyboard.q
                 # Quit - close the window
