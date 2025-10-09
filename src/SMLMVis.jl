@@ -12,8 +12,10 @@ The main functionality is provided by the Render module.
 """
 module SMLMVis
  
-# Include only the render module for now
+# Include all modules
 include("render/Render.jl")
+include("interact/Interact.jl")
+include("animate/Animate.jl")
 
 # Required packages
 using Images
@@ -21,6 +23,14 @@ using Images
 # Export from Render module
 using SMLMVis.Render
 export render, render_2d, render_3d
+
+# Export from Interact module (functions will be implemented in extensions)
+using SMLMVis.Interact
+export stack_viewer, locs_viewer, view_stack, view_localizations
+
+# Export from Animate module (functions will be implemented in extensions)
+using SMLMVis.Animate
+export animate_time_series, animate_acquisition
 
 # Core functionality for SMLMVis module
 

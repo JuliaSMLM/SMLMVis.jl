@@ -1,18 +1,24 @@
-module SMLMVisGLMakieExt
+module SMLMVisWGLMakieExt
+
+# This is nearly identical to GLMakie extension, but uses WGLMakie (WebGL backend)
+# Perfect for remote/headless systems - serves viewer via HTTP
 
 using SMLMVis
 using SMLMVis.Render
 using SMLMVis.Interact
 using SMLMVis.Animate
-using GLMakie
-using GLMakie.Makie: Figure, Axis, GridLayout, Label, Slider, Observable, on, events,
-                     Keyboard, heatmap!, hidedecorations!, hidespines!, xlims!, ylims!,
-                     autolimits!, DataAspect, @lift
+using WGLMakie
+using WGLMakie.Makie: Figure, Axis, GridLayout, Label, Slider, Observable, on, events,
+                      Keyboard, heatmap!, hidedecorations!, hidespines!, xlims!, ylims!,
+                      autolimits!, DataAspect, @lift
 using Images
 using Statistics
 
+# Include all the same utility functions and implementation
+# The only difference is WGLMakie instead of GLMakie
+
 # ============================================================================
-# Utility Functions
+# Utility Functions (identical to GLMakie version)
 # ============================================================================
 
 """
@@ -65,11 +71,8 @@ function convert_to_uint8(data::AbstractArray{T};
         elseif contrast == :sqrt
             normalized = sqrt(normalized)
         elseif contrast == :equalize
-            # Simple histogram equalization (approximate)
-            # For full implementation, would need binning
             normalized = normalized  # Placeholder
         end
-        # :linear is identity
 
         # Convert to UInt8
         output[i] = round(UInt8, clamp(normalized * 255, 0, 255))
@@ -98,24 +101,27 @@ function get_slice(data::AbstractArray, z_idx::Int, t_idx::Int=1)
 end
 
 # ============================================================================
-# Phase 1 MVP: Stack Viewer Implementation
+# Phase 1 MVP: Stack Viewer Implementation (WGLMakie version)
 # ============================================================================
 
 """
     stack_viewer(data::AbstractArray; kwargs...)
 
 Interactive viewer for multidimensional image stacks (1D-4D).
+**WGLMakie (WebGL) version for remote/headless systems.**
+
+Opens viewer in browser at http://localhost:9284
 
 # Phase 1 MVP Features:
 - 2D/3D display with Z-slider
 - Linear contrast with global stretch
-- Keyboard navigation (n/p for Z, i/o for zoom, q to quit)
+- Keyboard navigation (n/p for Z, i/o for zoom)
 - UInt8 conversion for efficient rendering
 - Basic status bar
 
 # Arguments
 - `data`: 1D-4D array of image data
-- `backend`: `:auto`, `:GLMakie`, or `:WGLMakie` (Phase 1: GLMakie only)
+- `backend`: `:auto`, `:GLMakie`, or `:WGLMakie` (this is WGLMakie)
 - `contrast`: Contrast method (Phase 1: :linear only)
 - `clip`: Percentile clipping tuple (default: (0.001, 0.999))
 - `zoom`: Initial zoom factor (default: 1.0)
@@ -126,7 +132,7 @@ Interactive viewer for multidimensional image stacks (1D-4D).
 # Keyboard Controls (Phase 1):
 - `n`/`p`: Next/previous slice
 - `i`/`o`: Zoom in/out
-- `q`: Quit viewer
+- Close browser tab to quit
 """
 function SMLMVis.Interact.stack_viewer(
     data::AbstractArray;
@@ -200,20 +206,20 @@ function SMLMVis.Interact.stack_viewer(
         sl_z = Slider(main_layout[3, 1], range=1:nslices, startvalue=1)
         Label(main_layout[3, 2], @lift("Slice: $($(sl_z.value))/$nslices"), width=120)
 
-        # Connect slider to observable
+        # Connect slider to update heatmap
         on(sl_z.value) do val
             current_slice[] = val
-            hm[3][] = update_display()  # Update heatmap data
+            hm[3][] = update_display()  # Update heatmap data (plot[3] contains z-values)
         end
     end
 
-    # T-slider (only if 4D) - Phase 2 feature, placeholder for now
+    # T-slider (only if 4D) - Phase 2 feature
     if nframes > 1
         @warn "4D data detected. Time navigation will be added in Phase 2"
     end
 
     # Status bar
-    help_text = "n/p: Navigate  i/o: Zoom  q: Quit"
+    help_text = "n/p: Navigate  i/o: Zoom  Close browser tab to quit"
     Label(main_layout[4, 1:2], help_text, fontsize=12, halign=:left)
 
     # Keyboard controls
@@ -241,7 +247,6 @@ function SMLMVis.Interact.stack_viewer(
                 # Zoom in
                 new_zoom = zoom_level[] * 1.5
                 zoom_level[] = min(new_zoom, 16.0)
-                # Update axis limits (approximate zoom)
                 xlims = (width/2 - width/(2*zoom_level[]), width/2 + width/(2*zoom_level[]))
                 ylims = (height/2 - height/(2*zoom_level[]), height/2 + height/(2*zoom_level[]))
                 xlims!(ax, xlims...)
@@ -250,7 +255,6 @@ function SMLMVis.Interact.stack_viewer(
                 # Zoom out
                 new_zoom = zoom_level[] / 1.5
                 zoom_level[] = max(new_zoom, 0.25)
-                # Reset to full view if zoomed out enough
                 if zoom_level[] <= 1.0
                     zoom_level[] = 1.0
                     autolimits!(ax)
@@ -260,24 +264,26 @@ function SMLMVis.Interact.stack_viewer(
                     xlims!(ax, xlims...)
                     ylims!(ax, ylims...)
                 end
-            elseif event.key == Keyboard.q
-                # Quit - close the window
-                # In GLMakie, we can just notify that user wants to close
-                @info "Quit requested. Close the window to exit."
-                # Note: Programmatic window closing in Makie can be tricky
-                # Users can always close the window with the X button
             end
         end
     end
 
-    # Display the figure
+    # Display the figure - WGLMakie will open in browser
+    println("\n" * "="^80)
+    println("WGLMakie Viewer (WebGL - for remote/headless systems)")
+    println("="^80)
+    println("Opening viewer in browser...")
+    println("Default URL: http://localhost:9284")
+    println("\nIf on remote server, use SSH port forwarding:")
+    println("  ssh -L 9284:localhost:9284 user@server")
+    println("Then open: http://localhost:9284 in your local browser")
+    println("="^80 * "\n")
+
     display(fig)
 
     return fig
 end
 
-# ============================================================================
-# Placeholder implementations for other functions
 # ============================================================================
 # Phase 2+ features - not yet implemented
 # ============================================================================
@@ -288,4 +294,4 @@ end
 # - animate_time_series: Time series animations
 # - animate_acquisition: Acquisition animations
 
-end # module SMLMVisGLMakieExt
+end # module SMLMVisWGLMakieExt

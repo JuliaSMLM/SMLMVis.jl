@@ -1,7 +1,9 @@
 # test_basic.jl
 # Tests the coordinate fix with a really simple pattern
+# Run with: julia dev/test_basic.jl (or press Run in VSCode)
+
 using Pkg
-Pkg.activate(".")
+Pkg.activate("dev")
 
 using SMLMData
 using SMLMVis

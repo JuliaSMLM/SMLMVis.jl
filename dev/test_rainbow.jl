@@ -1,7 +1,9 @@
 # test_rainbow.jl
 # A specific test to show how coloring by dataset number works
+# Run with: julia dev/test_rainbow.jl (or press Run in VSCode)
+
 using Pkg
-Pkg.activate(".")
+Pkg.activate("dev")
 
 using SMLMData
 using SMLMVis

@@ -1,7 +1,8 @@
 # test_smlmsim.jl
-# Use main environment
+# Run with: julia dev/test_smlmsim.jl (or press Run in VSCode)
+
 using Pkg
-Pkg.activate(".")
+Pkg.activate("dev")
 Pkg.instantiate()
 
 # Load required packages
