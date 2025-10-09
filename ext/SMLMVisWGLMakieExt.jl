@@ -10,7 +10,7 @@ using SMLMVis.Animate
 using WGLMakie
 using WGLMakie.Makie: Figure, Axis, GridLayout, Label, Slider, Observable, on, events,
                       Keyboard, heatmap!, hidedecorations!, hidespines!, xlims!, ylims!,
-                      autolimits!, DataAspect, @lift
+                      autolimits!, DataAspect, set_close_to!, @lift
 using Images
 using Statistics
 
@@ -167,8 +167,12 @@ function _stack_viewer_impl(
     nslices = (ndims_data >= 3 ? sz[3] : 1)
     nframes = (ndims_data >= 4 ? sz[4] : 1)
 
-    # Create figure
-    fig = Figure(size=(800, 900))
+    # Create figure with size based on data dimensions
+    # Scale to make image visible but not too large
+    scale_factor = min(800 / max(width, height), 4.0)  # Max 4x upscale, max 800px
+    fig_width = Int(round(width * scale_factor + 100))   # Add padding for controls
+    fig_height = Int(round(height * scale_factor + 200)) # Add padding for title/sliders/status
+    fig = Figure(size=(max(fig_width, 400), max(fig_height, 500)))
 
     # Create main layout
     main_layout = fig[1, 1] = GridLayout()
@@ -277,7 +281,7 @@ function _stack_viewer_impl(
                 if current_slice[] > 1
                     current_slice[] -= 1
                     if !isnothing(sl_z)
-                        sl_z.value[] = current_slice[]
+                        set_close_to!(sl_z, current_slice[])
                     end
                     hm[3][] = update_display()
                 end
@@ -285,7 +289,7 @@ function _stack_viewer_impl(
                 if current_slice[] < nslices
                     current_slice[] += 1
                     if !isnothing(sl_z)
-                        sl_z.value[] = current_slice[]
+                        set_close_to!(sl_z, current_slice[])
                     end
                     hm[3][] = update_display()
                 end
@@ -301,7 +305,7 @@ function _stack_viewer_impl(
                 if nslices > 1 && current_slice[] < nslices
                     current_slice[] += 1
                     if !isnothing(sl_z)
-                        sl_z.value[] = current_slice[]
+                        set_close_to!(sl_z, current_slice[])
                     end
                     hm[3][] = update_display()  # Update heatmap data
                 end
@@ -310,7 +314,7 @@ function _stack_viewer_impl(
                 if nslices > 1 && current_slice[] > 1
                     current_slice[] -= 1
                     if !isnothing(sl_z)
-                        sl_z.value[] = current_slice[]
+                        set_close_to!(sl_z, current_slice[])
                     end
                     hm[3][] = update_display()  # Update heatmap data
                 end
@@ -340,7 +344,7 @@ function _stack_viewer_impl(
                 if nslices > 1 && current_slice[] != 1
                     current_slice[] = 1
                     if !isnothing(sl_z)
-                        sl_z.value[] = current_slice[]
+                        set_close_to!(sl_z, current_slice[])
                     end
                     hm[3][] = update_display()  # Update heatmap data
                 end
@@ -349,7 +353,7 @@ function _stack_viewer_impl(
                 if nslices > 1 && current_slice[] != nslices
                     current_slice[] = nslices
                     if !isnothing(sl_z)
-                        sl_z.value[] = current_slice[]
+                        set_close_to!(sl_z, current_slice[])
                     end
                     hm[3][] = update_display()  # Update heatmap data
                 end
@@ -373,7 +377,7 @@ function _stack_viewer_impl(
                 if nframes > 1 && current_frame[] < nframes
                     current_frame[] += 1
                     if !isnothing(sl_t)
-                        sl_t.value[] = current_frame[]
+                        set_close_to!(sl_t, current_frame[])
                     end
                     hm[3][] = update_display()  # Update heatmap data
                 end
@@ -382,7 +386,7 @@ function _stack_viewer_impl(
                 if nframes > 1 && current_frame[] > 1
                     current_frame[] -= 1
                     if !isnothing(sl_t)
-                        sl_t.value[] = current_frame[]
+                        set_close_to!(sl_t, current_frame[])
                     end
                     hm[3][] = update_display()  # Update heatmap data
                 end
