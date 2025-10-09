@@ -19,27 +19,12 @@ Pkg.activate("dev")
 
 # Smart backend detection
 function detect_backend()
-    # If BACKEND env var is explicitly set, use that
-    if haskey(ENV, "BACKEND")
-        backend = uppercase(ENV["BACKEND"])
-        if backend in ["GL", "WGL", "CAIRO"]
-            return backend
-        end
-    end
-
     # Auto-detect based on environment
     if Sys.islinux()
-        # Check if DISPLAY is set (X11/Wayland available)
-        if haskey(ENV, "DISPLAY") && !isempty(ENV["DISPLAY"])
-            return "GL"  # Can use GLMakie with display
-        else
-            # Headless/SSH: Default to WGLMakie for VSCode/Jupyter
-            # User can override if needed
-            println("⚠ Note: Headless environment detected (no DISPLAY)")
-            println("  Defaulting to WGLMakie (for VSCode plot pane)")
-            println("  Set BACKEND=GL if you have X11 forwarding")
-            return "WGL"
-        end
+        # Default to WGLMakie on Linux (works in VSCode, Jupyter, etc.)
+        println("⚠ Note: Using WGLMakie (for VSCode/Jupyter)")
+        println("  Works in VSCode plot pane, Jupyter, Pluto")
+        return "WGL"
     elseif Sys.iswindows() || Sys.isapple()
         return "GL"  # Desktop systems default to GLMakie
     else
@@ -298,7 +283,9 @@ println("Test data generated successfully!")
 println("="^80)
 
 # Run a test interactively
-test_num = parse(Int, get(ENV, "TEST", "2"))  # Default to test 2 (3D spots)
+# Default: Test 2 (3D spots)
+# To change: Edit this line to test_num = 1, 3, 4, 5, or 6
+test_num = 2
 
 if test_num == 1
     println("\n→ Launching Test 1: 2D Gradient")
